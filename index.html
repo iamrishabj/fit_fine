@@ -166,8 +166,304 @@
     }
   };
 
-  /* ── Migration run karo ── */
-  window.FSDB.migrate();
+  /* ══════════════════════════════════════════════════════════
+   ADMIN SHOP MANAGEMENT
+══════════════════════════════════════════════════════════ */
+
+/* Load admin-added products from localStorage */
+function _adGetShopProducts(){
+  try{ return JSON.parse(localStorage.getItem('ff_admin_shop_products')||'[]'); }catch(e){ return []; }
+}
+function _adSaveShopProducts(arr){
+  try{ localStorage.setItem('ff_admin_shop_products', JSON.stringify(arr)); }catch(e){}
+  /* Merge into SHOP_PRODUCTS runtime */
+  _adMergeShopProducts();
+}
+function _adMergeShopProducts(){
+  var adminProds = _adGetShopProducts();
+  /* Remove old admin products from SHOP_PRODUCTS first */
+  SHOP_PRODUCTS.equipment = SHOP_PRODUCTS.equipment.filter(function(p){ return !p._adminAdded; });
+  SHOP_PRODUCTS.food = SHOP_PRODUCTS.food.filter(function(p){ return !p._adminAdded; });
+  /* Re-add */
+  adminProds.forEach(function(p){
+    if(p.tab==='food') SHOP_PRODUCTS.food.push(p);
+    else SHOP_PRODUCTS.equipment.push(p);
+  });
+}
+
+/* ── Render Admin Shop Panel ── */
+function _adRenderShop(){
+  var el = document.getElementById('ad-shop-content');
+  if(!el) return;
+  var adminProds = _adGetShopProducts();
+  var builtinEq = SHOP_PRODUCTS.equipment.filter(function(p){ return !p._adminAdded; });
+  var builtinFd = SHOP_PRODUCTS.food.filter(function(p){ return !p._adminAdded; });
+
+  var html = '';
+
+  /* Add Product button */
+  html += '<div style="padding:12px 14px 0">'
+    +'<button onclick="adOpenAddProduct()" style="width:100%;padding:13px;border-radius:12px;border:1.5px dashed rgba(0,200,83,.5);background:rgba(0,200,83,.07);color:var(--g2);font-size:13px;font-weight:800;cursor:pointer;font-family:Poppins,sans-serif;display:flex;align-items:center;justify-content:center;gap:8px">'
+    +'<span style="font-size:20px">➕</span> Naya Shop Product Add Karo'
+    +'</button>'
+    +'</div>';
+
+  /* Stats row */
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px">'
+    +'<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:10px;text-align:center"><div style="font-family:Nunito,sans-serif;font-size:20px;font-weight:900;color:var(--g2)">'+(builtinEq.length+adminProds.filter(function(p){return p.tab!=='food';}).length)+'</div><div style="font-size:10px;color:var(--muted)">Equipment</div></div>'
+    +'<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:10px;text-align:center"><div style="font-family:Nunito,sans-serif;font-size:20px;font-weight:900;color:#FF6D00">'+(builtinFd.length+adminProds.filter(function(p){return p.tab==='food';}).length)+'</div><div style="font-size:10px;color:var(--muted)">Food</div></div>'
+    +'<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--rs);padding:10px;text-align:center"><div style="font-family:Nunito,sans-serif;font-size:20px;font-weight:900;color:var(--blue)">'+adminProds.length+'</div><div style="font-size:10px;color:var(--muted)">Admin Added</div></div>'
+    +'</div>';
+
+  /* Admin-added products */
+  if(adminProds.length){
+    html += '<div style="padding:0 14px"><div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--g2);padding:8px 0 6px;border-bottom:1px solid var(--border);margin-bottom:8px">🛍️ ADMIN-ADDED PRODUCTS ('+adminProds.length+')</div></div>';
+    adminProds.forEach(function(p){
+      var stockColor = p.stock===0 ? 'var(--red)' : p.stock<=5 ? 'var(--orange)' : 'var(--g2)';
+      var stockLabel = p.stock===0 ? '❌ Out of Stock' : p.stock<=5 ? '⚠️ Only '+p.stock+' left' : '✅ In Stock ('+p.stock+')';
+      html += '<div style="margin:0 14px 10px;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden">'
+        +'<div style="display:flex;gap:0">'
+        +'<img src="'+p.img+'" style="width:90px;height:90px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'">'
+        +'<div style="flex:1;padding:10px 12px;min-width:0">'
+        +'<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">'
+        +'<div style="flex:1;font-size:13px;font-weight:800;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+        +'<span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(0,176,255,.15);color:#00B0FF;font-weight:800;white-space:nowrap;flex-shrink:0">'+(p.tab==='food'?'🥗 Food':'🏋️ Equip')+'</span>'
+        +'</div>'
+        +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.desc+'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        +'<span style="font-family:Nunito,sans-serif;font-size:15px;font-weight:900">₹'+p.price+'</span>'
+        +(p.oldPrice?'<span style="font-size:11px;color:var(--muted);text-decoration:line-through">₹'+p.oldPrice+'</span>':'')
+        +'<span style="margin-left:auto;font-size:10px;font-weight:700;color:'+stockColor+'">'+stockLabel+'</span>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px">'
+        +'<button onclick="adEditShopProduct(\''+p.id+'\')" style="flex:1;padding:6px;border-radius:8px;border:1px solid rgba(0,176,255,.3);background:rgba(0,176,255,.08);color:#00B0FF;font-size:11px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">✏️ Edit</button>'
+        +'<button onclick="adToggleShopStock(\''+p.id+'\')" style="flex:1;padding:6px;border-radius:8px;border:1px solid rgba(255,214,0,.3);background:rgba(255,214,0,.08);color:#FFD600;font-size:11px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">'+(p.stock>0?'📦 Stock':'🔄 Restock')+'</button>'
+        +'<button onclick="adDeleteShopProduct(\''+p.id+'\')" style="flex:1;padding:6px;border-radius:8px;border:1px solid rgba(244,67,54,.3);background:rgba(244,67,54,.08);color:var(--red);font-size:11px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🗑️ Delete</button>'
+        +'</div>'
+        +'</div></div></div>';
+    });
+  }
+
+  /* Built-in products list (read-only) */
+  html += '<div style="padding:0 14px"><div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);padding:8px 0 6px;border-bottom:1px solid var(--border);margin-bottom:8px">📦 BUILT-IN PRODUCTS ('+(builtinEq.length+builtinFd.length)+')</div></div>';
+  builtinEq.concat(builtinFd).forEach(function(p){
+    html += '<div style="margin:0 14px 8px;background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px">'
+      +'<img src="'+p.img+'" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</div>'
+      +'<div style="font-size:11px;color:var(--muted)">₹'+p.price+(p.oldPrice?' · <s>₹'+p.oldPrice+'</s>':'')+'</div>'
+      +'</div>'
+      +'<span style="font-size:9px;padding:2px 7px;border-radius:20px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-weight:700;flex-shrink:0">Built-in</span>'
+      +'</div>';
+  });
+
+  el.innerHTML = html;
+}
+
+/* ── Add Product Form ── */
+function adOpenAddProduct(editId){
+  var existing = null;
+  if(editId){
+    var arr = _adGetShopProducts();
+    existing = arr.find(function(p){ return p.id===editId; });
+  }
+  var p = existing || {};
+  var mc = document.getElementById('mc');
+  var modal = document.getElementById('modal');
+  if(!mc||!modal) return;
+  modal.className = 'modal modal-lg';
+  mc.innerHTML = '<h3>'+(editId?'✏️ Edit Product':'➕ Naya Product Add Karo')+'</h3>'
+    +'<div style="background:rgba(0,176,255,.07);border:1px solid rgba(0,176,255,.2);border-radius:var(--rs);padding:9px 12px;font-size:11px;color:#00B0FF;font-weight:700;margin-bottom:14px">🛍️ Yeh product Shop page pe dikhai dega</div>'
+
+    /* Basic Info */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">📝 BASIC INFO</div>'
+    +'<div class="fg"><label>Product Name *</label><input id="sp-name" placeholder="e.g. Premium Protein Shaker" value="'+(p.name||'')+'"></div>'
+    +'<div class="fg"><label>Description *</label><textarea id="sp-desc" style="min-height:55px" placeholder="Short description (1-2 lines)">'+(p.desc||'')+'</textarea></div>'
+    +'<div class="fg-row">'
+    +'<div class="fg"><label>Category Tab *</label><select id="sp-tab"><option value="equipment"'+(p.tab==='food'?'':' selected')+'>🏋️ Equipment</option><option value="food"'+(p.tab==='food'?' selected':'')+'>🥗 Food</option></select></div>'
+    +'<div class="fg"><label>Sub-Category *</label><input id="sp-cat" placeholder="e.g. yoga / strength / snack" value="'+(p.cat||'')+'"></div>'
+    +'</div>'
+    +'<div class="fg"><label>Brand</label><input id="sp-brand" placeholder="e.g. FitFine Pro" value="'+(p.brand||'FitFine Pro')+'"></div>'
+
+    /* Pricing & Stock */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin:10px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">💰 PRICING & STOCK</div>'
+    +'<div class="fg-row">'
+    +'<div class="fg"><label>Selling Price (₹) *</label><input id="sp-price" type="number" placeholder="999" value="'+(p.price||'')+'"></div>'
+    +'<div class="fg"><label>MRP / Old Price (₹)</label><input id="sp-oldprice" type="number" placeholder="Leave blank if no discount" value="'+(p.oldPrice||'')+'"></div>'
+    +'</div>'
+    +'<div class="fg-row">'
+    +'<div class="fg"><label>Stock Quantity *</label><input id="sp-stock" type="number" placeholder="e.g. 25" value="'+(p.stock!==undefined?p.stock:'')+'"></div>'
+    +'<div class="fg"><label>Delivery Days *</label><input id="sp-delivery" type="number" placeholder="e.g. 3" value="'+(p.deliveryDays||'')+'"></div>'
+    +'</div>'
+    +'<div class="fg-row">'
+    +'<div class="fg"><label>Return Policy (days, 0=no return)</label><input id="sp-return" type="number" placeholder="7" value="'+(p.returnDays!==undefined?p.returnDays:7)+'"></div>'
+    +'<div class="fg"><label>Veg Product?</label><select id="sp-veg"><option value="0"'+(p.veg?'':' selected')+'>❌ Non-Veg</option><option value="1"'+(p.veg?' selected':'')+'>🟢 Veg</option></select></div>'
+    +'</div>'
+
+    /* Badge */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin:10px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🏷️ BADGE</div>'
+    +'<div class="fg-row">'
+    +'<div class="fg"><label>Badge Text</label><input id="sp-badge" placeholder="e.g. 20% OFF / New / Hot" value="'+(p.badge||'')+'"></div>'
+    +'<div class="fg"><label>Badge Type</label><select id="sp-badgetype"><option value=""'+((!p.badgeType||p.badgeType==='')?'selected':'')+'>None</option><option value="off"'+(p.badgeType==='off'?' selected':'')+'>🔴 Discount (off)</option><option value="new"'+(p.badgeType==='new'?' selected':'')+'>🔵 New</option><option value="hot"'+(p.badgeType==='hot'?' selected':'')+'>🔥 Hot</option></select></div>'
+    +'</div>'
+
+    /* Size variants */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin:10px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">📐 SIZE / VARIANTS (optional)</div>'
+    +'<div class="fg"><label>Sizes (comma separated, blank = no size option)</label><input id="sp-sizes" placeholder="e.g. S, M, L, XL  OR  500g, 1kg, 2kg" value="'+(p.sizes?p.sizes.join(', '):'')+'"></div>'
+
+    /* Product Highlights */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin:10px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">✨ PRODUCT HIGHLIGHTS (one per line)</div>'
+    +'<div class="fg"><textarea id="sp-highlights" style="min-height:80px" placeholder="Premium quality material&#10;Eco-friendly packaging&#10;1-year warranty&#10;Free setup guide included">'+(p.highlights?p.highlights.join('\n'):'')+'</textarea></div>'
+
+    /* Image */
+    +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);margin:10px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🖼️ PRODUCT IMAGE</div>'
+    +'<div class="fg"><label>Image URL (Unsplash ya koi bhi direct image link)</label><input id="sp-img" placeholder="https://images.unsplash.com/..." value="'+(p.img||'')+'" oninput="adPreviewImg(this.value)"></div>'
+    +'<div id="sp-img-preview" style="margin-bottom:10px;'+(p.img?'':'display:none')+'"><img src="'+(p.img||'')+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:12px;border:1px solid var(--border)" onerror="this.parentElement.style.display=\'none\'"></div>'
+    +'<div class="fg"><label>OR Upload Image from Device</label><input type="file" id="sp-img-file" accept="image/*" onchange="adUploadProductImg(this)" style="font-size:12px;padding:8px"></div>'
+
+    /* SKU */
+    +'<div class="fg"><label>SKU / Product Code</label><input id="sp-sku" placeholder="e.g. FFP-YM-'+(Date.now()%1000)+'" value="'+(p.sku||('ADM-'+Date.now()%9999))+'"></div>'
+
+    /* Submit */
+    +'<button class="mgo" onclick="adSaveShopProduct('+(editId?'\''+editId+'\'':'null')+')">'+(editId?'💾 Save Changes →':'➕ Add Product to Shop →')+'</button>'
+    +(editId?'<div style="margin-top:10px;text-align:center"><button onclick="adDeleteShopProduct(\''+editId+'\')" style="padding:8px 20px;border-radius:50px;border:1.5px solid rgba(244,67,54,.35);background:transparent;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🗑️ Delete This Product</button></div>':'');
+
+  document.getElementById('overlay').classList.add('on');
+  document.body.classList.add('modal-open');
+}
+
+function adPreviewImg(url){
+  var wrap = document.getElementById('sp-img-preview');
+  var img = wrap ? wrap.querySelector('img') : null;
+  if(!wrap||!img) return;
+  if(!url){ wrap.style.display='none'; return; }
+  img.src = url;
+  img.onerror = function(){ wrap.style.display='none'; };
+  img.onload = function(){ wrap.style.display='block'; };
+}
+
+function adUploadProductImg(input){
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var url = e.target.result;
+    var urlInput = document.getElementById('sp-img');
+    if(urlInput) urlInput.value = url;
+    adPreviewImg(url);
+  };
+  reader.readAsDataURL(file);
+}
+
+function adSaveShopProduct(editId){
+  var name   = (document.getElementById('sp-name')||{}).value||'';
+  var desc   = (document.getElementById('sp-desc')||{}).value||'';
+  var tab    = (document.getElementById('sp-tab')||{}).value||'equipment';
+  var cat    = (document.getElementById('sp-cat')||{}).value||'general';
+  var brand  = (document.getElementById('sp-brand')||{}).value||'FitFine';
+  var price  = parseInt((document.getElementById('sp-price')||{}).value)||0;
+  var oldP   = parseInt((document.getElementById('sp-oldprice')||{}).value)||0;
+  var stock  = parseInt((document.getElementById('sp-stock')||{}).value);
+  var delD   = parseInt((document.getElementById('sp-delivery')||{}).value)||3;
+  var retD   = parseInt((document.getElementById('sp-return')||{}).value)||7;
+  var veg    = (document.getElementById('sp-veg')||{}).value==='1';
+  var badge  = (document.getElementById('sp-badge')||{}).value.trim()||null;
+  var btype  = (document.getElementById('sp-badgetype')||{}).value||null;
+  var sizesRaw=(document.getElementById('sp-sizes')||{}).value||'';
+  var sizes  = sizesRaw.trim() ? sizesRaw.split(',').map(function(s){return s.trim();}).filter(Boolean) : null;
+  var hlRaw  = (document.getElementById('sp-highlights')||{}).value||'';
+  var highlights = hlRaw.trim() ? hlRaw.split('\n').map(function(s){return s.trim();}).filter(Boolean) : null;
+  var img    = (document.getElementById('sp-img')||{}).value||'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&h=400&fit=crop';
+  var sku    = (document.getElementById('sp-sku')||{}).value||'ADM-'+Date.now();
+
+  /* Validation */
+  if(!name.trim()){ showToast('❌ Product naam zaruri hai!'); return; }
+  if(!desc.trim()){ showToast('❌ Description zaruri hai!'); return; }
+  if(!price||price<1){ showToast('❌ Valid price daalo!'); return; }
+  if(isNaN(stock)||stock<0){ showToast('❌ Stock quantity daalo!'); return; }
+
+  var arr = _adGetShopProducts();
+  var prod = {
+    id:     editId || 'adm_'+Date.now(),
+    name:   name.trim(),
+    desc:   desc.trim(),
+    tab:    tab,
+    cat:    cat.trim().toLowerCase(),
+    brand:  brand.trim(),
+    price:  price,
+    oldPrice: oldP||null,
+    stock:  stock,
+    deliveryDays: delD,
+    returnDays: retD,
+    veg:    veg,
+    badge:  badge,
+    badgeType: btype||null,
+    sizes:  sizes,
+    highlights: highlights,
+    img:    img.trim(),
+    imgs:   [img.trim()],
+    sku:    sku.trim(),
+    rating: 4.5,
+    reviews: 0,
+    _adminAdded: true,
+    addedOn: new Date().toLocaleDateString('en-IN')
+  };
+
+  if(editId){
+    var idx = arr.findIndex(function(p){ return p.id===editId; });
+    if(idx>-1) arr[idx]=prod; else arr.push(prod);
+    showToast('✅ Product "'+prod.name+'" updated!');
+  } else {
+    arr.push(prod);
+    showToast('🎉 Product "'+prod.name+'" shop mein add ho gaya!');
+  }
+  _adSaveShopProducts(arr);
+  /* PRODUCT_PRICES and PRODUCT_EMOJI bhi update karo */
+  PRODUCT_PRICES[prod.name] = prod.price;
+  PRODUCT_EMOJI[prod.name] = prod.veg ? '🥗' : '🛍️';
+  closeModal();
+  _adRenderShop();
+  /* Shop grid bhi refresh karo if open */
+  if(typeof _shopRenderAll === 'function') _shopRenderAll();
+  else { _shopRenderGrid('shop-eq-grid', SHOP_PRODUCTS.equipment, ''); _shopRenderGrid('shop-food-grid', SHOP_PRODUCTS.food, ''); }
+}
+
+function adEditShopProduct(id){
+  adOpenAddProduct(id);
+}
+
+function adDeleteShopProduct(id){
+  adConfirm('Product Delete?','Yeh product shop se permanently remove ho jayega.',function(){
+    var arr = _adGetShopProducts().filter(function(p){ return p.id!==id; });
+    _adSaveShopProducts(arr);
+    closeModal();
+    _adRenderShop();
+    _shopRenderGrid('shop-eq-grid', SHOP_PRODUCTS.equipment, '');
+    _shopRenderGrid('shop-food-grid', SHOP_PRODUCTS.food, '');
+    showToast('🗑️ Product delete ho gaya!');
+  },'Delete Product');
+}
+
+function adToggleShopStock(id){
+  var arr = _adGetShopProducts();
+  var p = arr.find(function(p){ return p.id===id; });
+  if(!p) return;
+  if(p.stock===0){
+    /* Restock */
+    var qty = parseInt(prompt('Kitna stock add karna hai?','10'));
+    if(isNaN(qty)||qty<1){ showToast('❌ Valid quantity daalo!'); return; }
+    p.stock = qty;
+    showToast('✅ '+p.name+' restocked with '+qty+' units!');
+  } else {
+    p.stock = 0;
+    showToast('⚠️ '+p.name+' marked as Out of Stock!');
+  }
+  _adSaveShopProducts(arr);
+  _adRenderShop();
+}
+
+/* ── Merge admin products on page load ── */
+_adMergeShopProducts();
 
   function handleGoogleUser(fbUser) {
     const email = fbUser.email.toLowerCase();
@@ -181,9 +477,8 @@
         if(typeof DB !== 'undefined') DB.save('users', window.allUsers);
       }
       if(typeof loginUser === 'function') loginUser(window.allUsers[email]);
-      if(typeof sendLoginEmail === 'function') sendLoginEmail(name, email);
-      if(typeof sendAdminNotification === 'function') sendAdminNotification(name, email, phone||'N/A', 'login');
       if(typeof closeModal === 'function') closeModal();
+      if(typeof sendUserAndAdminEmail === 'function') sendUserAndAdminEmail(name, email, window.allUsers[email].phone||'N/A', 'login');
       if(typeof success === 'function') success('👋','Welcome Back!','Hello '+name+'! Google se login successful. 💚');
       return;
     }
@@ -199,9 +494,8 @@
     if(typeof DB !== 'undefined') DB.save('users', window.allUsers);
     if(typeof loginUser === 'function') loginUser(user);
     if(typeof renderUserCards === 'function') renderUserCards();
-    if(typeof sendWelcomeEmail === 'function') sendWelcomeEmail(name, email, 'Fit & Fine Member (Google)');
-    if(typeof sendAdminNotification === 'function') sendAdminNotification(name, email, phone||'N/A', 'signup');
     if(typeof closeModal === 'function') closeModal();
+    if(typeof sendUserAndAdminEmail === 'function') sendUserAndAdminEmail(name, email, phone||'N/A', 'signup');
     if(typeof success === 'function') success('🎉','Welcome to Fit & Fine!',name+' ka Google account se account ban gaya! 💚');
   }
 
@@ -241,6 +535,19 @@
   window.firebaseSignOut = async function(){
     try{ await signOut(auth); }catch(e){}
   };
+
+  /* ── Expose module-scoped admin functions to global scope ── */
+  window._adRenderShop        = _adRenderShop;
+  window._adGetShopProducts   = _adGetShopProducts;
+  window._adSaveShopProducts  = _adSaveShopProducts;
+  window._adMergeShopProducts = _adMergeShopProducts;
+  window.adOpenAddProduct     = adOpenAddProduct;
+  window.adPreviewImg         = adPreviewImg;
+  window.adUploadProductImg   = adUploadProductImg;
+  window.adSaveShopProduct    = adSaveShopProduct;
+  window.adEditShopProduct    = adEditShopProduct;
+  window.adDeleteShopProduct  = adDeleteShopProduct;
+  window.adToggleShopStock    = adToggleShopStock;
 </script>
 
 <!-- Facebook SDK -->
@@ -286,9 +593,8 @@
               if(typeof DB !== 'undefined') DB.save('users', window.allUsers);
             }
             if(typeof loginUser === 'function') loginUser(window.allUsers[email]);
-            if(typeof sendLoginEmail === 'function') sendLoginEmail(name, email);
-            if(typeof sendAdminNotification === 'function') sendAdminNotification(name, email, 'N/A', 'login');
             if(typeof closeModal === 'function') closeModal();
+            if(typeof sendUserAndAdminEmail === 'function') sendUserAndAdminEmail(name, email, window.allUsers[email].phone||'N/A', 'login');
             if(typeof success === 'function') success('👋','Welcome Back!','Hello '+name+'! Facebook se login successful. 💙');
             return;
           }
@@ -311,9 +617,8 @@
           if(typeof DB !== 'undefined') DB.save('users', window.allUsers);
           if(typeof loginUser === 'function') loginUser(user);
           if(typeof renderUserCards === 'function') renderUserCards();
-          if(typeof sendWelcomeEmail === 'function') sendWelcomeEmail(name, email, 'Fit & Fine Member (Facebook)');
-          if(typeof sendAdminNotification === 'function') sendAdminNotification(name, email, 'N/A', 'signup');
           if(typeof closeModal === 'function') closeModal();
+          if(typeof sendUserAndAdminEmail === 'function') sendUserAndAdminEmail(name, email, '', 'signup');
           if(typeof success === 'function') success('🎉','Welcome to Fit & Fine!',name+' ka Facebook account se account ban gaya! 💙');
         });
       } else {
@@ -338,6 +643,113 @@
       window._ejsReady = true;
     }catch(e){ window._ejsReady = false; }
   });
+</script>
+<script>
+/* ══════════════════════════════════════════════════════════
+   NEW EMAIL SYSTEM — Public Key: fCN62qCNDGe721Mwd
+   Service: service_toecjb7
+   - Admin Notification  → template_1yy9peb
+   - User Welcome/Login  → template_xts9i5h
+   NOTE: createInstance() nahi use kar rahe — har send() mein
+         publicKey directly pass karte hain (CDN compatible fix)
+══════════════════════════════════════════════════════════ */
+
+var _EJS2_PUBLIC_KEY  = 'fCN62qCNDGe721Mwd';
+var _EJS2_PRIVATE_KEY = 'BOmXj9VNVMGSFtKu_nBMa';
+var _EJS2_SERVICE     = 'service_toecjb7';
+var _EJS2_TPL_ADMIN   = 'template_1yy9peb';
+var _EJS2_TPL_USER    = 'template_xts9i5h';
+
+/* Helper — XMLHttpRequest use karo (file:// + localhost dono pe kaam karta hai) */
+function _ejs2Send(templateId, params){
+  return new Promise(function(resolve, reject){
+    try{
+      var payload = JSON.stringify({
+        service_id:      _EJS2_SERVICE,
+        template_id:     templateId,
+        user_id:         _EJS2_PUBLIC_KEY,
+        accessToken:     _EJS2_PRIVATE_KEY,
+        template_params: params
+      });
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://api.emailjs.com/api/v1.0/email/send', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function(){
+        if(xhr.readyState !== 4) return;
+        if(xhr.status === 200){
+          resolve({status: 200});
+        } else {
+          reject(xhr.responseText || 'HTTP ' + xhr.status);
+        }
+      };
+      xhr.onerror = function(){ reject('Network error'); };
+      xhr.send(payload);
+    }catch(e){ reject(e); }
+  });
+}
+
+/* ── A. ADMIN NOTIFICATION (Login/Signup pe admin ko mail) ── */
+function sendAdminMail(userName, userEmail, userPhone, eventType){
+  try{
+    if(typeof emailjs === 'undefined'){ console.warn('⚠️ [ADMIN MAIL] EmailJS load nahi hua'); return; }
+    var eventTime  = new Date().toLocaleString('en-IN', {timeZone:'Asia/Kolkata'});
+    var eventLabel = eventType === 'signup' ? '🆕 New Signup' : '🔑 User Login';
+    var params = {
+      to_name:    'Admin',
+      to_email:   'rishabhjalvanshi@gmail.com',
+      email:      'rishabhjalvanshi@gmail.com',
+      reply_to:   userEmail || 'noreply@fitandfine.in',
+      from_name:  'Fit & Fine System',
+      event_type: eventLabel,
+      user_name:  userName  || 'N/A',
+      user_email: userEmail || 'N/A',
+      user_phone: userPhone || 'N/A',
+      event_time: eventTime,
+      message:    eventLabel + '\nName: '  + (userName  || 'N/A')
+                             + '\nEmail: ' + (userEmail || 'N/A')
+                             + '\nPhone: ' + (userPhone || 'N/A')
+                             + '\nTime: '  + eventTime
+    };
+    console.log('📧 [ADMIN MAIL] Admin ko notify kar raha hoon ->', eventLabel, userEmail);
+    _ejs2Send(_EJS2_TPL_ADMIN, params)
+      .then(function(res){ console.log('✅ [ADMIN MAIL] Sent! Status:', res.status); })
+      .catch(function(err){ console.error('❌ [ADMIN MAIL] Failed:', err.text || err.message || JSON.stringify(err)); });
+  }catch(e){ console.error('[ADMIN MAIL] crash:', e); }
+}
+
+/* ── B. USER WELCOME / LOGIN EMAIL ── */
+function sendUserMail(userName, userEmail, eventType){
+  try{
+    if(typeof emailjs === 'undefined'){ console.warn('⚠️ [USER MAIL] EmailJS load nahi hua'); return; }
+    if(!userEmail){ console.warn('⚠️ [USER MAIL] Email missing'); return; }
+    var loginTime = new Date().toLocaleString('en-IN', {timeZone:'Asia/Kolkata'});
+    var isNew     = eventType === 'signup';
+    var params = {
+      to_name:    userName  || 'Member',
+      to_email:   userEmail,
+      email:      userEmail,
+      reply_to:   'noreply@fitandfine.in',
+      from_name:  'Fit & Fine Team',
+      login_time: loginTime,
+      message:    isNew
+        ? 'Welcome to the Fit & Fine family! 🏋️ Hello ' + (userName||'Member') + ', aapka account successfully ban gaya hai!'
+        : 'Aapka Fit & Fine account mein login hua hai ' + loginTime + ' par. Agar yeh aap nahi the, toh turant apna password change karein.'
+    };
+    console.log('📧 [USER MAIL] User ko mail bhej raha hoon ->', userEmail, isNew ? '(Welcome)' : '(Login)');
+    _ejs2Send(_EJS2_TPL_USER, params)
+      .then(function(res){
+        console.log('✅ [USER MAIL] Sent! Status:', res.status);
+        if(isNew && typeof showToast === 'function') showToast('📧 Welcome email bheja gaya!');
+      })
+      .catch(function(err){ console.error('❌ [USER MAIL] Failed:', err.text || err.message || JSON.stringify(err)); });
+  }catch(e){ console.error('[USER MAIL] crash:', e); }
+}
+
+/* ── C. COMBINED FUNCTION — Ek call mein dono kaam ── */
+function sendUserAndAdminEmail(userName, userEmail, userPhone, eventType){
+  sendUserMail(userName, userEmail, eventType);
+  sendAdminMail(userName, userEmail, userPhone, eventType);
+}
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <style>
@@ -818,7 +1230,7 @@ body.light-mode .toast{background:#fff;border-color:rgba(0,200,83,.4);color:#111
 }
 .overlay.on{display:flex}
 /* When modal is open — prevent body scroll + interaction */
-body.modal-open{overflow:hidden!important;pointer-events:none}
+body.modal-open{overflow:hidden!important;pointer-events:none;position:fixed;width:100%;left:0}
 body.modal-open .overlay{pointer-events:auto}
 .modal{background:var(--card);border:1px solid #252525;border-radius:var(--r);padding:26px;max-width:480px;width:100%;position:relative;animation:mup .25s ease;max-height:92vh;overflow-y:auto}
 .modal-lg{max-width:560px}
@@ -847,6 +1259,14 @@ body.modal-open .overlay{pointer-events:auto}
 .str-bar{height:3px;border-radius:2px;margin-top:5px;transition:all .3s;background:var(--border)}
 .str-w{background:var(--red);width:30%}.str-m{background:var(--orange);width:65%}.str-s{background:var(--g1);width:100%}
 .str-txt{font-size:10px;margin-top:3px}
+/* ── Country Code Phone Picker ── */
+.cc-group{display:flex;gap:0;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card);transition:border-color .2s}
+.cc-group:focus-within{border-color:var(--g2)}
+.cc-wrap{position:relative;flex-shrink:0;border-right:1.5px solid var(--border);background:rgba(0,200,83,.06)}
+.cc-sel{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2;font-size:14px}
+.cc-display{padding:0 10px;height:100%;display:flex;align-items:center;font-size:13px;font-weight:700;color:var(--g2);white-space:nowrap;pointer-events:none;min-width:52px;justify-content:center}
+.cc-group input[type="tel"]{border:none!important;border-radius:0!important;background:transparent!important;flex:1;min-width:0;outline:none!important;padding:11px 12px!important}
+.cc-group input[type="tel"]:focus{box-shadow:none!important}
 /* Profile */
 .p-hd{display:flex;align-items:center;gap:14px;padding:14px;background:linear-gradient(135deg,rgba(0,200,83,.08),transparent);border-radius:var(--rs);border:1px solid rgba(0,200,83,.12);margin-bottom:16px}
 .p-av{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#000;flex-shrink:0;border:2px solid var(--g2)}
@@ -3247,10 +3667,11 @@ let currentUser=null;
 let allUsers=DB.load('users',{});
 let cartItems=[];
 let cartCount=0;
-let notifs=DB.load('notifs',[])||[];
-/* Purane notifs ko ID assign karo agar not hai */
-notifs.forEach(function(n,i){if(!n.id)n.id='n_old_'+i+'_'+Date.now();});
-DB.save('notifs',notifs);
+/* Notifications: user-specific load — sirf logged-in user ke notifs */
+function _notifsKey(){ return currentUser ? 'notifs_'+currentUser.email : 'notifs_guest'; }
+function _loadUserNotifs(){ return DB.load(_notifsKey(),[])||[]; }
+function _saveUserNotifs(){ DB.save(_notifsKey(), notifs); }
+let notifs = [];  /* Login ke baad load hoga */
 
 let selectedCat=null;
 
@@ -3509,88 +3930,6 @@ function addCart(btn,name){
    EMAIL HELPERS — Teen alag alag functions, teen alag services
    ════════════════════════════════════════════════════════ */
 
-/* ── 1. WELCOME EMAIL (Signup pe) ── */
-function sendWelcomeEmail(userName, userEmail, cardType){
-  try{
-    if(typeof emailjs === 'undefined'){ console.warn('⚠️ EmailJS load not hua'); return; }
-    if(!userEmail){ console.warn('⚠️ Email missing'); return; }
-    var params = {
-      to_name:   userName  || 'Member',
-      to_email:  userEmail,
-      email:     userEmail,
-      reply_to:  userEmail,
-      card_type: cardType  || 'Fit & Fine Member',
-      from_name: 'Fit & Fine Team',
-      message:   'Welcome to the Fit & Fine family! 🏋️ Welcome, ' + (userName||'Member') + '!'
-    };
-    console.log('📧 [WELCOME] Email bhej raha hoon ->', userEmail);
-    emailjs.send('service_toecjb7', 'template_xts9i5h', params)
-      .then(function(res){
-        console.log('✅ [WELCOME] Email sent! Status:', res.status);
-        showToast('📧 Welcome email bheja gaya!');
-      })
-      .catch(function(err){
-        console.error('❌ [WELCOME] Email FAILED:', err.text || err.message || JSON.stringify(err));
-      });
-  }catch(e){ console.error('[WELCOME] crash:', e); }
-}
-
-/* ── 1b. LOGIN EMAIL (Har login pe user ko mail jaata hai) ── */
-function sendLoginEmail(userName, userEmail){
-  try{
-    if(typeof emailjs === 'undefined'){ console.warn('⚠️ EmailJS load not hua'); return; }
-    if(!userEmail){ console.warn('⚠️ Email missing'); return; }
-    var loginTime = new Date().toLocaleString('en-IN', {timeZone:'Asia/Kolkata'});
-    var params = {
-      to_name:   userName  || 'Member',
-      to_email:  userEmail,
-      email:     userEmail,
-      reply_to:  'noreply@fitandfine.in',
-      from_name: 'Fit & Fine Team',
-      login_time: loginTime,
-      message:   'Aapka Fit & Fine account mein login hua hai ' + loginTime + ' par. Agar yeh aap not the, toh please change your password immediately.'
-    };
-    console.log('📧 [LOGIN] Email bhej raha hoon ->', userEmail);
-    emailjs.send('service_toecjb7', 'template_xts9i5h', params)
-      .then(function(res){
-        console.log('✅ [LOGIN] Email sent! Status:', res.status);
-      })
-      .catch(function(err){
-        console.error('❌ [LOGIN] Email FAILED:', err.text || err.message || JSON.stringify(err));
-      });
-  }catch(e){ console.error('[LOGIN] crash:', e); }
-}
-
-/* ── 1c. ADMIN NOTIFICATION EMAIL (Login/Signup pe admin ko details jaati hain) ── */
-function sendAdminNotification(userName, userEmail, userPhone, eventType){
-  try{
-    if(typeof emailjs === 'undefined'){ console.warn('⚠️ EmailJS load not hua'); return; }
-    var eventTime = new Date().toLocaleString('en-IN', {timeZone:'Asia/Kolkata'});
-    var eventLabel = eventType === 'signup' ? '🆕 New Signup' : '🔑 User Login';
-    var params = {
-      to_name:    'Admin',
-      to_email:   'rishabhjalvanshi@gmail.com',
-      email:      'rishabhjalvanshi@gmail.com',
-      reply_to:   userEmail || 'noreply@fitandfine.in',
-      from_name:  'Fit & Fine System',
-      event_type: eventLabel,
-      user_name:  userName  || 'N/A',
-      user_email: userEmail || 'N/A',
-      user_phone: userPhone || 'N/A',
-      event_time: eventTime,
-      message:    eventLabel + '\nName: ' + (userName||'N/A') + '\nEmail: ' + (userEmail||'N/A') + '\nPhone: ' + (userPhone||'N/A') + '\nTime: ' + eventTime
-    };
-    console.log('📧 [ADMIN NOTIF] Notifying admin ->', eventLabel, userEmail);
-    emailjs.send('service_toecjb7', 'template_1yy9peb', params)
-      .then(function(res){
-        console.log('✅ [ADMIN NOTIF] Admin email sent! Status:', res.status);
-      })
-      .catch(function(err){
-        console.error('❌ [ADMIN NOTIF] Admin email FAILED:', err.text || err.message || JSON.stringify(err));
-      });
-  }catch(e){ console.error('[ADMIN NOTIF] crash:', e); }
-}
-
 /* ── 2. OTP EMAIL (Forgot Password pe) ── */
 function sendOTPEmail(toEmail, otpCode, onDone){
   var params = {
@@ -3625,34 +3964,41 @@ function sendOTPEmail(toEmail, otpCode, onDone){
 
 /* ── 3. CONTACT/SUPPORT EMAIL (Contact form pe) ── */
 function sendContactEmail(templateParams, onSuccess, onFail){
-  /* Background email — errors silently ignore karo */
   try{
-    if(window._ejsReady && typeof emailjs !== 'undefined'){
-      emailjs.send('service_ni3vpcx', 'template_c6zvten', templateParams)
-        .then(function(res){
-          if(typeof onSuccess === 'function') onSuccess();
-        })
-        .catch(function(){
-          /* Silently fallback — message already saved in localStorage */
-          if(typeof onFail === 'function') onFail();
-        });
-    } else {
-      if(typeof onFail === 'function') onFail();
-    }
-  }catch(e){
-    if(typeof onFail === 'function') onFail();
-  }
+    var payload = JSON.stringify({
+      service_id:      'service_ni3vpcx',
+      template_id:     'template_c6zvten',
+      user_id:         'h_muYW2nfJtRhDcBv',
+      template_params: templateParams
+    });
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://api.emailjs.com/api/v1.0/email/send', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function(){
+      if(xhr.readyState !== 4) return;
+      if(xhr.status === 200){ if(typeof onSuccess==='function') onSuccess(); }
+      else{ console.error('[CONTACT] Failed:', xhr.responseText); if(typeof onFail==='function') onFail(); }
+    };
+    xhr.onerror = function(){ if(typeof onFail==='function') onFail(); };
+    xhr.send(payload);
+  }catch(e){ if(typeof onFail==='function') onFail(); }
 }
 
 function doSignup(){
   const name=document.getElementById('su-n').value.trim();
   const email=document.getElementById('su-e').value.trim().toLowerCase();
-  const phone=document.getElementById('su-p').value.trim();
+  /* Get phone with country code from cc-group */
+  var _suCCSel = document.querySelector('#cc-group-su-p .cc-sel');
+  var _suCC = _suCCSel ? _suCCSel.value : '+91';
+  var _suNum = document.getElementById('su-p').value.replace(/[^0-9]/g,'');
+  const phone = _suNum ? _suCC + _suNum : '';
   const pass=document.getElementById('su-pw').value;
   const cpass=document.getElementById('su-cpw').value;
-  if(!name||!email||!phone||!pass||!cpass){showToast('❌ Please fill in all fields!');return}
-  if(!/\S+@\S+\.\S+/.test(email)){showToast('❌ Please enter a valid email!');return}
-  if(pass.length<6){showToast('❌ Password min 6 characters!');return}
+  if(!name||!email||!phone||!pass||!cpass){showToast('❌ Sabhi fields fill karein!');return}
+  if(!/^[A-Za-z\s]{2,}$/.test(name)){showToast('❌ Naam mein sirf letters likhein!');return}
+  if(!/\S+@\S+\.\S+/.test(email)){showToast('❌ Valid email address likhein!');return}
+  if(_suNum.length < 7){showToast('❌ Phone number kam se kam 7 digits hona chahiye!');return}
+  if(pass.length<6){showToast('❌ Password kam se kam 6 characters ka hona chahiye!');return}
   if(pass!==cpass){showToast('❌ Passwords do not match!');return}
   if(allUsers[email]){showToast('❌ Email already registered! Please login.');return}
   const addr=document.getElementById('su-addr')?document.getElementById('su-addr').value.trim():'';
@@ -3661,10 +4007,7 @@ function doSignup(){
   loginUser(user);
   renderUserCards();
   try{ RA.log('signup','Account Created!','Welcome, '+name+'! Journey shuru ho gayi. 💚', null); }catch(e){}
-  /* ── Welcome Email user ko ── */
-  sendWelcomeEmail(name, email, 'Fit & Fine Member');
-  /* ── Admin ko signup details bhejo ── */
-  sendAdminNotification(name, email, phone, 'signup');
+  sendUserAndAdminEmail(name, email, phone, 'signup');
   success('🎉','Welcome to Fit & Fine!','Account created! Book your first free session.');
 }
 
@@ -3678,13 +4021,9 @@ function doLogin(){
   if(user.banned){showToast('🚫 Aapka account suspend hai. Admin se contact karein.');return;}
   if(user.password!==pass){showToast('❌ Incorrect password!');return}
   /* Last email save karo for auto-fill next time */
-  try{ localStorage.setItem('ff_last_email', email); }catch(e){}
   loginUser(user);
+  sendUserAndAdminEmail(user.name, user.email, user.phone||'N/A', 'login');
   success('👋','Welcome Back!','Hello '+user.name+'! Continue your journey. 💚');
-  /* ── Login email user ko bhejo ── */
-  sendLoginEmail(user.name, user.email);
-  /* ── Admin ko login details bhejo ── */
-  sendAdminNotification(user.name, user.email, user.phone||'N/A', 'login');
 }
 
 /* ============================================================
@@ -3699,7 +4038,7 @@ function socialLogin(provider){
     /* Phone OTP Login */
     mc.innerHTML = `<h3>📱 Phone se Login</h3><p class="msub">OTP aapke registered phone number pe aayega.</p>
     <div class="fg"><label>Phone Number <span style="color:#F50057">*</span></label>
-      <input id="sl-phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210" style="font-size:15px;letter-spacing:1px">
+      <div class="cc-group" id="cc-group-sl-phone" style="font-size:15px"><div class="cc-wrap" data-for="sl-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+974">🇶🇦 +974 (Qatar)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+968">🇴🇲 +968 (Oman)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+65">🇸🇬 +65 (Singapore)</option><option value="+61">🇦🇺 +61 (Australia)</option></select><div class="cc-display">+91</div></div><input id="sl-phone" type="tel" autocomplete="off" inputmode="numeric" maxlength="10" placeholder="98765 43210" style="letter-spacing:1px"></div>
     </div>
     <button class="mgo" onclick="socialPhoneOTP()">Send OTP →</button>
     <p class="lnktxt" style="margin-top:8px"><span onclick="openModal('login')">← Wapas jao</span></p>`;
@@ -3718,10 +4057,10 @@ function socialLogin(provider){
     <p class="msub">${providerName} account se quick login karein.</p>
     <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left;margin:14px 0">
       <div class="fg" style="margin-bottom:8px"><label>${providerName} Email <span style="color:#F50057">*</span></label>
-        <input id="sl-social-email" type="email" autocomplete="email" placeholder="${provider==='google'?'aapka@gmail.com':'aapka@email.com'}" style="border-color:${providerColor}44">
+        <input id="sl-social-email" type="email" autocomplete="off" placeholder="${provider==='google'?'aapka@gmail.com':'aapka@email.com'}" style="border-color:${providerColor}44">
       </div>
       <div class="fg" style="margin-bottom:0"><label>${providerName} Display Name</label>
-        <input id="sl-social-name" autocomplete="name" placeholder="Aapka naam (optional)">
+        <input id="sl-social-name" type="text" autocomplete="off" inputmode="text" placeholder="e.g. Arjun Sharma (optional)">
       </div>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.7">
@@ -3746,11 +4085,9 @@ function doSocialLogin(provider){
   var providerLabel = provider==='google'?'Google':'GitHub';
   /* Agar user already exist karta hai toh directly login karo */
   if(allUsers[email]){
-    try{ localStorage.setItem('ff_last_email', email); }catch(e){}
     loginUser(allUsers[email]);
+    sendUserAndAdminEmail(allUsers[email].name, email, allUsers[email].phone||'N/A', 'login');
     success('👋','Welcome Back!','Hello '+allUsers[email].name+'! '+providerLabel+' se login successful. 💚');
-    sendLoginEmail(allUsers[email].name, email);
-    sendAdminNotification(allUsers[email].name, email, allUsers[email].phone||'N/A', 'login');
     return;
   }
   /* Naya user — account create karo (no password required for social login) */
@@ -3769,11 +4106,9 @@ function doSocialLogin(provider){
   };
   allUsers[email] = user;
   DB.save('users', allUsers);
-  try{ localStorage.setItem('ff_last_email', email); }catch(e){}
   loginUser(user);
   renderUserCards();
-  sendWelcomeEmail(displayName, email, 'Fit & Fine Member ('+providerLabel+')');
-  sendAdminNotification(displayName, email, 'N/A', 'signup');
+  sendUserAndAdminEmail(displayName, email, '', 'signup');
   success('🎉','Welcome to Fit & Fine!',displayName+' ka '+providerLabel+' account se account ban gaya! 💚');
 }
 
@@ -3817,7 +4152,6 @@ function socialPhoneVerify(){
   /* Agar user mila toh login karo, warna guest phone account banao */
   if(window._slFoundUser){
     var email = window._slFoundUser.email;
-    try{ localStorage.setItem('ff_last_email', email); }catch(e){}
     loginUser(window._slFoundUser);
     success('👋','Welcome Back!','Hello '+window._slFoundUser.name+'! Phone se login successful. 💚');
   } else {
@@ -3833,7 +4167,6 @@ function socialPhoneVerify(){
     };
     allUsers[pEmail] = user;
     DB.save('users', allUsers);
-    try{ localStorage.setItem('ff_last_email', pEmail); }catch(e){}
     loginUser(user);
     renderUserCards();
     success('🎉','Welcome!','Phone account ban gaya! Apna profile complete karein. 💚');
@@ -3951,6 +4284,20 @@ function _setStyle(id,prop,val){var el=document.getElementById(id);if(el)el.styl
 function loginUser(user){
   currentUser=user;
   DB.save('currentUser',user.email);
+  /* ── User ke apne notifications load karo ── */
+  notifs = _loadUserNotifs();
+  notifs.forEach(function(n,i){if(!n.id)n.id='n_old_'+i+'_'+Date.now();});
+  renderNotifs();
+  /* Notif dot update */
+  try{
+    var unread = notifs.filter(function(n){return n.unread;}).length;
+    var dot = document.getElementById('notif-dot');
+    if(dot){ if(unread>0) dot.classList.add('show'); else dot.classList.remove('show'); }
+  }catch(e){}
+  /* Firestore mein user save karo — admin ke liye */
+  if(typeof window.FSDB !== 'undefined' && user.email){
+    window.FSDB.saveUser(user.email, user).catch(function(){});
+  }
   _setStyle('guest-btns','display','none');
   var av=document.getElementById('nav-av');if(av)av.style.display='flex';
   _setEl('av-name','textContent',user.name);
@@ -3970,7 +4317,8 @@ function loginUser(user){
   /* ── Real-time member stat update on login ── */
   try{ if(typeof window._statOnLogin==='function') window._statOnLogin(); }catch(e){}
   /* ── Auto-fill all open forms with user data ── */
-  setTimeout(function(){ ffAutoFillForms(user); }, 200);
+  /* AutoFill: sirf profile/edit forms mein fill karo — login/signup forms nahi */
+  setTimeout(function(){ ffAutoFillForms(user, true); }, 200);
 }
 
 
@@ -3979,36 +4327,50 @@ function loginUser(user){
    Login ke baad ya modal open hone pe user data forms mein
    automatically fill ho jaata hai
 ============================================================ */
-function ffAutoFillForms(user){
+function ffAutoFillForms(user, skipLoginSignup){
   if(!user) return;
+
+  /* Login/Signup/Booking form IDs — inhe kabhi prefill mat karo */
+  var SKIP_IDS = ['li-e','li-pw','su-n','su-e','su-p','su-pw','su-cpw','su-addr',
+                  'bk-name','bk-email','bk-phone','bk-note',
+                  'sl-phone','sl-social-email','sl-social-name','sl-otp-inp'];
+
+  /* Sirf profile/contact/diet/edit forms fill karo */
   var map = [
-    {ids:['cf-name'],       val: user.name},
-    {ids:['cf-email'],      val: user.email},
-    {ids:['cf-phone'],      val: user.phone||''},
-    {ids:['diet-name'],     val: user.name},
-    {ids:['diet-email'],    val: user.email},
-    {ids:['edit-n'],        val: user.name},
-    {ids:['edit-p'],        val: user.phone||''},
-    {ids:['edit-addr'],     val: user.address||''},
+    {ids:['cf-name'],   val: user.name},
+    {ids:['cf-email'],  val: user.email},
+    {ids:['cf-phone'],  val: user.phone||''},
+    {ids:['diet-name'], val: user.name},
+    {ids:['diet-email'],val: user.email},
+    {ids:['edit-n'],    val: user.name},
+    {ids:['edit-p'],    val: user.phone||''},
+    {ids:['edit-addr'], val: user.address||''},
   ];
   map.forEach(function(m){
     m.ids.forEach(function(id){
+      if(SKIP_IDS.indexOf(id) > -1) return; /* skip */
       var el = document.getElementById(id);
-      if(el && !el.value && m.val) el.value = m.val;
+      if(el && m.val) el.value = m.val;
     });
   });
-  var autoMap = {
-    'name':   user.name,
-    'email':  user.email,
-    'tel':    user.phone||'',
-    'address-level2': user.address||''
-  };
-  Object.keys(autoMap).forEach(function(ac){
-    if(!autoMap[ac]) return;
-    document.querySelectorAll('input[autocomplete="'+ac+'"], textarea[autocomplete="'+ac+'"]').forEach(function(el){
-      if(!el.value) el.value = autoMap[ac];
+
+  /* Autocomplete fill bhi sirf non-skip elements ke liye */
+  if(!skipLoginSignup){
+    var autoMap = {
+      'name':   user.name,
+      'email':  user.email,
+      'tel':    user.phone||'',
+      'address-level2': user.address||''
+    };
+    Object.keys(autoMap).forEach(function(ac){
+      if(!autoMap[ac]) return;
+      document.querySelectorAll('input[autocomplete="'+ac+'"], textarea[autocomplete="'+ac+'"]').forEach(function(el){
+        /* Login/Signup/Booking inputs skip */
+        if(el.id && SKIP_IDS.indexOf(el.id) > -1) return;
+        if(!el.value) el.value = autoMap[ac];
+      });
     });
-  });
+  }
 }
 
 function doLogout(){
@@ -4028,8 +4390,81 @@ function doLogout(){
   var addBtn=document.getElementById('topbar-add-card-btn');if(addBtn)addBtn.style.display='none';
   /* ── Topbar Login button wapas dikhao ── */
   var nbLogin=document.querySelector('.nb.nb-o');if(nbLogin)nbLogin.style.display='';
+  /* ── Logout ke baad notifs memory se clear karo ── */
+  notifs = [];
+  try{
+    var dot = document.getElementById('notif-dot');
+    if(dot) dot.classList.remove('show');
+    renderNotifs();
+  }catch(e){}
+  /* ── Logout ke baad saare forms clear karo ── */
+  clearUserForms();
   if(typeof closeModal==='function') closeModal();
   showToast('👋 Logged out successfully! See you again.');
+}
+
+/* ============================================================
+   CLEAR USER FORMS — Logout ke baad saara data reset
+   Placeholders wapas aajate hain, koi purana data nahi dikhta
+============================================================ */
+function clearUserForms(){
+  /* -- Text / email / tel / textarea inputs clear karo -- */
+  var formIds = [
+    'cf-name','cf-email','cf-phone','cf-msg',
+    'diet-name','diet-email','diet-phone','diet-goal','diet-note',
+    'edit-n','edit-p','edit-addr','edit-email',
+    'bk-name','bk-email','bk-phone','bk-note',
+    'su-n','su-e','su-p','su-pw','su-cpw','su-addr',
+    'li-e','li-pw'
+  ];
+  formIds.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el){ el.value = ''; }
+  });
+
+  /* -- Autocomplete wale inputs bhi clear karo -- */
+  var acTypes = ['name','email','tel','address-level2','new-password','current-password'];
+  acTypes.forEach(function(ac){
+    document.querySelectorAll('input[autocomplete="'+ac+'"], textarea[autocomplete="'+ac+'"]').forEach(function(el){
+      el.value = '';
+    });
+  });
+
+  /* -- Profile section reset karo -- */
+  var avName  = document.getElementById('av-name');
+  var avEmail = document.getElementById('av-email');
+  if(avName)  avName.textContent  = 'Guest';
+  if(avEmail) avEmail.textContent = 'Login karein';
+
+  /* -- Avatar/initials reset -- */
+  var avCircle = document.getElementById('av-circle');
+  if(avCircle) avCircle.textContent = '?';
+
+  /* -- Login form ke placeholder yaad dilao -- */
+  var liE  = document.getElementById('li-e');
+  var liPw = document.getElementById('li-pw');
+  if(liE)  liE.setAttribute('placeholder','Email address');
+  if(liPw) liPw.setAttribute('placeholder','Password');
+
+  /* -- Last email localStorage se bhi hata do -- */
+  try{ localStorage.removeItem('ff_last_email'); }catch(e){}
+
+  /* -- Browser autocomplete cache se bhi hatao -- */
+  try{
+    var allInputs = document.querySelectorAll('input, textarea, select');
+    allInputs.forEach(function(el){
+      /* Sirf login/signup/booking wale clear karo */
+      var skipIds = ['li-e','li-pw','su-n','su-e','su-p','su-pw','su-cpw','su-addr',
+                     'bk-name','bk-email','bk-phone','bk-note',
+                     'sl-phone','sl-social-email','sl-social-name'];
+      if(el.id && skipIds.indexOf(el.id) > -1){ el.value=''; }
+      /* Autocomplete types clear */
+      var skipAC = ['email','current-password','new-password'];
+      if(el.autocomplete && skipAC.indexOf(el.autocomplete) > -1){ el.value=''; }
+    });
+  }catch(e){}
+
+  console.log('🧹 [LOGOUT] Saare forms clear ho gaye — placeholders wapas aa gaye.');
 }
 
 function updateBkBadge(){
@@ -4089,9 +4524,10 @@ function openActiveMembersModal(){
    NOTIFICATIONS
 ============================================================ */
 function addNotif(icon,title,msg){
+  if(!currentUser){ return; } /* Guest ko notification nahi */
   var id='n'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   notifs.unshift({id:id,icon:icon,title:title,msg:msg,time:'Just now',ts:Date.now(),unread:true});
-  DB.save('notifs',notifs);
+  _saveUserNotifs();
   renderNotifs();
   document.getElementById('notif-dot').classList.add('show');
 }
@@ -4099,7 +4535,7 @@ function addNotif(icon,title,msg){
 function deleteNotif(id, e){
   if(e){e.stopPropagation();}
   notifs=notifs.filter(function(n){return n.id!==id;});
-  DB.save('notifs',notifs);
+  _saveUserNotifs();
   renderNotifs();
   if(notifs.filter(function(n){return n.unread;}).length===0){
     document.getElementById('notif-dot').classList.remove('show');
@@ -4110,7 +4546,7 @@ function deleteNotif(id, e){
 function clearAllNotifs(){
   if(!notifs.length){showToast('📭 No notifications to clear!');return;}
   notifs=[];
-  DB.save('notifs',notifs);
+  _saveUserNotifs();
   renderNotifs();
   document.getElementById('notif-dot').classList.remove('show');
   showToast('🗑️ All notifications cleared!');
@@ -4121,7 +4557,7 @@ function openNotifDetail(id){
   if(!n)return;
   /* Mark as read */
   n.unread=false;
-  DB.save('notifs',notifs);
+  _saveUserNotifs();
   renderNotifs();
   if(notifs.filter(function(x){return x.unread;}).length===0){
     document.getElementById('notif-dot').classList.remove('show');
@@ -4213,7 +4649,7 @@ function toggleNotif(){
 }
 function markAllRead(){
   notifs.forEach(function(n){n.unread=false;});
-  DB.save('notifs',notifs);
+  _saveUserNotifs();
   renderNotifs();
   document.getElementById('notif-dot').classList.remove('show');
   showToast('✅ All notifications marked as read!');
@@ -4277,7 +4713,7 @@ function _showTrainerSuggestPanel(selectedName){
       +   '<div style="font-size:9px;color:'+(isLight?'#5A6378':'rgba(255,255,255,.45)')+'">⭐ '+t.rating+' ('+t.reviews+')</div>'
       +   '<div style="font-size:11px;font-weight:900;font-family:Nunito,sans-serif;color:#00C853">'+t.price+'</div>'
       + '</div>'
-      + '<div style="margin-top:6px;font-size:9px;color:#00C853;font-weight:600"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#00C853;margin-right:3px;vertical-align:middle"></span>'+t.avail+'</div>'
+      + '<div style="margin-top:6px;font-size:9px;color:#00C853;font-weight:600"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#00C853;margin-right:3px;vertical-align:middle"></span>'+t.avail+(t.homeClass==='yes'?' &nbsp;·&nbsp; <span style="color:var(--g2)">🏠 Home Class</span>':'')+'</div>'
       + '</div>';
   }).join('');
 
@@ -4503,7 +4939,36 @@ function getExtraFields(cat,existing){
     +'<div class="fg"><label>Benefits (comma separated)</label><input id="ef-benefits" placeholder="e.g. Weight loss, Muscle gain, Flexibility improve" value="'+v('benefits')+'"></div>'
     +'<div class="fg"><label>🏷️ Tags / Specializations (comma se)</label><input id="ef-tags" placeholder="e.g. HIIT, Yoga, Strength, Fat Loss" value="'+v('tags')+'"></div>'
     +'<div class="fg-row"><div class="fg"><label>🟢 Availability</label><input id="ef-avail" placeholder="e.g. Available Today" value="'+v('avail','Available Today')+'"></div>'
-    +'<div class="fg"><label>📅 Sessions Done</label><input id="ef-sessions" placeholder="e.g. 500+" value="'+v('sessions')+'"></div></div>';
+    +'<div class="fg"><label>📅 Sessions Done</label><input id="ef-sessions" placeholder="e.g. 500+" value="'+v('sessions')+'"></div></div>'
+    +sec('🏠 Home Class & Center')
+    +'<div style="background:rgba(0,200,83,.06);border:1.5px solid rgba(0,200,83,.18);border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">'
+    +'<div><div style="font-size:13px;font-weight:700;color:var(--text)">🏠 Home Class Available?</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:2px">Kya aap client ke ghar ja ke session de sakte ho?</div></div>'
+    +'<label style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0">'
+    +'<input type="checkbox" id="ef-homeclass" '+(v('homeClass')==='yes'?'checked':'')+' style="opacity:0;width:0;height:0">'
+    +'<span onclick="_hcToggle(this)" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:'+(v('homeClass')==='yes'?'var(--g1)':'#333')+';border-radius:26px;transition:.3s;display:flex;align-items:center;padding:0 3px">'
+    +'<span style="width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;'+(v('homeClass')==='yes'?'margin-left:22px':'margin-left:0')+'"></span></span></label>'
+    +'</div>'
+    +'<div style="background:rgba(0,176,255,.05);border:1.5px solid rgba(0,176,255,.2);border-radius:12px;padding:14px 16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">'
+    +'<div><div style="font-size:13px;font-weight:700;color:var(--text)">🏢 Khud ka Center hai?</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-top:2px">Apna gym, studio ya center map pe dikhao</div></div>'
+    +'<label style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0">'
+    +'<input type="checkbox" id="ef-hascenter" '+(v('hasCenter')==='yes'?'checked':'')+' style="opacity:0;width:0;height:0" onchange="_centerToggleFields(this.checked)">'
+    +'<span onclick="_cnToggle(this)" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:'+(v('hasCenter')==='yes'?'#00B0FF':'#333')+';border-radius:26px;transition:.3s;display:flex;align-items:center;padding:0 3px">'
+    +'<span style="width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;'+(v('hasCenter')==='yes'?'margin-left:22px':'margin-left:0')+'"></span></span></label>'
+    +'</div>'
+    +'<div id="ef-center-fields" style="display:'+(v('hasCenter')==='yes'?'flex':'none')+';flex-direction:column;gap:8px">'
+    +'<input id="ef-centername" placeholder="🏢 Center / Gym ka naam (e.g. FitZone Gym)" value="'+(v('centerName')||'')+'" style="padding:10px 12px;border-radius:9px;background:var(--dark);border:1.5px solid rgba(0,176,255,.3);color:var(--text);font-size:13px;outline:none;font-family:Poppins,sans-serif;width:100%">'
+    +'<div style="display:flex;gap:7px;align-items:center">'
+    +'<input id="ef-centeraddr" placeholder="📍 Center ka full address" value="'+(v('centerAddr')||'')+'" style="flex:1;padding:10px 12px;border-radius:9px;background:var(--dark);border:1.5px solid rgba(0,176,255,.3);color:var(--text);font-size:13px;outline:none;font-family:Poppins,sans-serif">'
+    +'<button type="button" onclick="_centerGetGPS()" style="width:44px;height:44px;border-radius:9px;border:1.5px solid #00B0FF;background:rgba(0,176,255,.15);color:#00B0FF;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center" title="Center ki GPS location lo">📍</button>'
+    +'</div>'
+    +'<div id="ef-center-gps-status" style="font-size:11px;color:var(--muted);min-height:14px">'+(v('centerLat')&&v('centerLng')?'✅ Center location saved: '+v('centerAddr'):'')+' </div>'
+    +'<input type="hidden" id="ef-centerlat" value="'+(v('centerLat')||'')+'">'
+    +'<input type="hidden" id="ef-centerlng" value="'+(v('centerLng')||'')+'">'
+    +'</div>'
+    +'</div>';
 
   /* ══════════════════ CLASSES ══════════════════ */
   if(cat==='classes'){
@@ -4697,6 +5162,15 @@ function _buildCardHTML(data){
   var cAddr=cUser?(cUser.address||'Not provided'):'Not provided',cInit=cUser?cUser.initials:(name[0]||'G').toUpperCase();
   var cColor=cUser&&cUser.email?'hsl('+hashColor(cUser.email)+',55%,45%)':'#888';
   var isMyCard=currentUser&&cUser&&currentUser.email===cUser.email;
+  var cEmail=cUser?(cUser.email||''):'';
+  var _ec=encodeURIComponent(cEmail||'');
+  var _en=encodeURIComponent(cName||'');
+  var _ew=encodeURIComponent(name||'');
+  var msgBtn='';
+  if(!isMyCard&&cEmail){
+    msgBtn='<button onclick="openChat(decodeURIComponent(\''+_ec+'\'),decodeURIComponent(\''+_en+'\'),decodeURIComponent(\''+_ew+'\'))" style="padding:9px 13px;border-radius:50px;border:1.5px solid #00B0FF;background:rgba(0,176,255,.08);color:#00B0FF;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">💬 Msg</button>';
+  }
+
 
   /* ── Icon ya image — original cards jaisi ── */
   var iconOrImg=imgData
@@ -4756,7 +5230,10 @@ function _buildCardHTML(data){
         +'<button class="card-detail-toggle" onclick="toggleCardDetails(this,\''+_cdid+'\')">▼ Details</button>'
         +'<button class="about-btn" onclick="showAbout(\''+cardId+'\')">ℹ️ Class Details</button>'
       +'</div>'
-      +'<button class="wcbtn" onclick="openModal(\'book\')">Book Session →</button>'
+      +'<div style="display:flex;gap:6px;padding:0 16px 10px">'
+      +'<button onclick="openModal(\'book\',JSON.stringify({trainer:decodeURIComponent(\''+_en+'\'),className:decodeURIComponent(\''+_ew+'\'),emoji:\''+icon+'\'}))" style="flex:1;padding:9px;border-radius:50px;border:none;background:linear-gradient(135deg,#00C853,#B2FF59);color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">📅 Book</button>'
+      +msgBtn
+      +'</div>'
       +creatorBadge
     +'</div>';
   }
@@ -4780,7 +5257,8 @@ function _buildCardHTML(data){
       +'</div>'
       +'<div class="tcf">'
         +'<div class="tp">'+(p||'Contact')+'</div>'
-        +'<button class="bkbtn" onclick="openModal(\'book\')">Book →</button>'
+        +'<button onclick="openModal(\'book\',JSON.stringify({trainer:decodeURIComponent(\''+_ew+'\'),specialty:decodeURIComponent(\''+encodeURIComponent(role)+'\'),emoji:\''+icon+'\',price:decodeURIComponent(\''+encodeURIComponent(p||'Contact')+'\')}))" class="bkbtn">Book →</button>'
+        +msgBtn
       +'</div>'
       +'<div style="margin-top:8px;display:flex;gap:6px;align-items:center">'
         +'<button class="card-detail-toggle" onclick="toggleCardDetails(this,\''+_tdid+'\')">▼ Details</button>'
@@ -4801,6 +5279,7 @@ function _buildCardHTML(data){
         +'<div class="pcf">'
           +'<div><div class="pcp">'+(p||'Contact')+'</div></div>'
           +'<button class="addbtn" onclick="addCart(this,\''+name+'\')">+ Add</button>'
+        +msgBtn
         +'</div>'
       +'</div>'
       +creatorBadge
@@ -4819,6 +5298,7 @@ function _buildCardHTML(data){
         +'<button class="card-detail-toggle" onclick="toggleCardDetails(this,\''+_hdid+'\')">▼ Details</button>'
         +'<span class="hllnk" onclick="showAbout(\''+cardId+'\')">View Plan →</span>'
         +'<button class="about-btn" onclick="showAbout(\''+cardId+'\')">ℹ️ Health Details</button>'
+        +msgBtn
       +'</div>'
       +creatorBadge
     +'</div>';
@@ -4844,7 +5324,10 @@ function _buildCardHTML(data){
         +'<button class="card-detail-toggle" onclick="toggleCardDetails(this,\''+_ddid+'\')">▼ Details</button>'
         +'<button class="about-btn" onclick="showAbout(\''+cardId+'\')">ℹ️ Diet Details</button>'
       +'</div>'
-      +'<button class="wcbtn" onclick="openModal(\'diet-form\')">Get Plan →</button>'
+      +'<div style="display:flex;gap:6px;padding:0 16px 10px">'
+      +'<button onclick="openModal(\'diet-form\')" style="flex:1;padding:9px;border-radius:50px;border:none;background:linear-gradient(135deg,#00C853,#B2FF59);color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🥗 Get Plan</button>'
+      +msgBtn
+      +'</div>'
       +creatorBadge
     +'</div>';
   }
@@ -4867,8 +5350,9 @@ function _buildCardHTML(data){
         +'<button class="card-detail-toggle" onclick="toggleCardDetails(this,\''+_wodid+'\')">▼ Details</button>'
         +'<button class="about-btn" onclick="showAbout(\''+cardId+'\')">ℹ️ Workout Details</button>'
       +'</div>'
-      +'<div style="padding:0 18px 10px">'
-        +'<button class="wcbtn" style="margin:0" onclick="openModal(\'book\')">Watch Tutorial →</button>'
+      +'<div style="padding:0 18px 10px;display:flex;gap:6px">'
+        +'<button onclick="openModal(\'book\',JSON.stringify({trainer:decodeURIComponent(\''+_en+'\'),className:decodeURIComponent(\''+_ew+'\'),emoji:\''+icon+'\',mode:\'online\'}))" style="flex:1;padding:9px;border-radius:50px;border:none;background:linear-gradient(135deg,#00C853,#B2FF59);color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">▶ Tutorial</button>'
+        +msgBtn
       +'</div>'
       +creatorBadge
     +'</div>';
@@ -4921,6 +5405,30 @@ function _fadeOutNextDefaultCard(section){
   for(var i=0;i<all.length;i++){
     if(all[i].style.display==='none')continue;
     var el=all[i];
+
+    /* Bid assign karo agar nahi hai */
+    _adAssignBuiltinIds();
+    var bid=el.dataset.bid;
+    var info=_adGetBuiltinInfo(el);
+
+    /* builtinBin mein auto-save karo — admin permanently delete kar sake */
+    if(bid){
+      var builtinBin=DB.load('builtinBin',[])||[];
+      var alreadyInBin=builtinBin.some(function(c){return c.bid===bid;});
+      if(!alreadyInBin){
+        builtinBin.unshift({
+          bid:bid,
+          name:info.name,
+          section:info.section,
+          icon:info.icon,
+          deletedOn:new Date().toLocaleDateString('en-IN'),
+          autoReplaced:true
+        });
+        DB.save('builtinBin',builtinBin);
+      }
+    }
+
+    /* Smooth fade out animation */
     el.style.transition='opacity .6s,transform .6s';
     el.style.opacity='0';el.style.transform='scale(.93)';
     setTimeout((function(e){return function(){e.style.display='none';};})(el),620);
@@ -5150,6 +5658,14 @@ function submitCard(){
   const expert=_gv('ef-expert');
   const avail=_gv('ef-avail')||'Available';
   const sessions=_gv('ef-sessions');
+  var _hcEl=document.getElementById('ef-homeclass');
+  const homeClass=_hcEl&&_hcEl.checked?'yes':'no';
+  var _cnEl=document.getElementById('ef-hascenter');
+  const hasCenter=_cnEl&&_cnEl.checked?'yes':'no';
+  const centerName=_gv('ef-centername');
+  const centerAddr=_gv('ef-centeraddr');
+  const centerLat=document.getElementById('ef-centerlat')?parseFloat(document.getElementById('ef-centerlat').value)||null:null;
+  const centerLng=document.getElementById('ef-centerlng')?parseFloat(document.getElementById('ef-centerlng').value)||null:null;
   const level=_gv('ef-level');
   const muscles=_gv('ef-muscles');
   const safetyTips=_gv('ef-safetytips');
@@ -5180,7 +5696,7 @@ function submitCard(){
     desc:desc, about:about, price:p||'', role:role, exp:exp, loc:loc, cal:cal, meta:meta, type:type,
     education:education, specialty:specialty, languages:languages, style:style_,
     duration:duration, schedule:schedule, instructor:instructor, includes:includes,
-    expert:expert, avail:avail, sessions:sessions, level:level,
+    expert:expert, avail:avail, sessions:sessions, level:level, homeClass:homeClass, hasCenter:hasCenter, centerName:centerName, centerAddr:centerAddr, centerLat:centerLat, centerLng:centerLng,
     muscles:muscles, safetyTips:safetyTips,
     protein:protein, carbs:carbs, fat:fat, mealPlan:mealPlan,
     planType:planType, discount:discount,
@@ -5213,6 +5729,10 @@ function submitCard(){
   var registry=DB.load('cardRegistry',[])||[];
   registry.push(cardData);
   DB.save('cardRegistry',registry);
+  /* Firestore mein bhi directly save karo — admin pe turant dikhe */
+  if(typeof window.FSDB !== 'undefined'){
+    window.FSDB.saveCard(cardData).catch(function(){});
+  }
 
   /* ── Real-time stat: koi bhi card banaye to trainer/creator count badhao ── */
   try{
@@ -5225,11 +5745,6 @@ function submitCard(){
   _injectCardToAboutData(cardData);
 
   /* ── Card Created Email ── */
-  if(currentUser && currentUser.email){
-    var _cardLabel = selectedCat ? (selectedCat.charAt(0).toUpperCase()+selectedCat.slice(1)+' Card') : 'New Card';
-    sendWelcomeEmail(currentUser.name, currentUser.email, _cardLabel+' — "'+name+'"');
-  }
-
   setTimeout(function(){ _fadeOutNextDefaultCard(selectedCat); }, 400);
 
   setTimeout(()=>gotoSec(map.id),300);
@@ -5484,6 +5999,9 @@ function openModal(type,extra=''){
     var _activeSn = document.querySelector('.sn.act');
     if(_activeSn) _prevSection = _activeSn.getAttribute('onclick');
   }catch(e){}
+  /* ── Background scroll lock: scroll position save karo ── */
+  window._modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.style.top = '-' + window._modalScrollY + 'px';
   const mc=document.getElementById('mc');
   const modal=document.getElementById('modal');
   modal.className='modal';
@@ -5494,6 +6012,19 @@ function openModal(type,extra=''){
     var _drov=document.getElementById('drawer-overlay');if(_drov)_drov.classList.remove('open');
     document.body.style.overflow='';
   }catch(e){}
+
+  /* ── Login/Signup modal khulne pe forms hamesha blank karo ── */
+  if(type === 'login' || type === 'signup'){
+    try{
+      var _clearIds = ['li-e','li-pw','su-n','su-e','su-p','su-pw','su-cpw','su-addr',
+                       'sl-phone','sl-social-email','sl-social-name','sl-otp-inp',
+                       'bk-name','bk-email','bk-phone','bk-note'];
+      _clearIds.forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.value = '';
+      });
+    }catch(e){}
+  }
 
   if(type==='signup'){
     mc.innerHTML=`<h3>Join Fit & Fine! 💪</h3><p class="msub">Join for free. First session FREE!</p>
@@ -5515,18 +6046,17 @@ function openModal(type,extra=''){
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:11px;color:var(--muted);white-space:nowrap">ya Email se signup karo</span><div style="flex:1;height:1px;background:var(--border)"></div></div>
     <!-- Email Signup Form -->
-    <div class="fg-row"><div class="fg"><label>Full Name</label><input id="su-n" autocomplete="name" placeholder="Arjun Sharma"></div><div class="fg"><label>Phone</label><input id="su-p" type="tel" autocomplete="tel" placeholder="+91 9876543210"></div></div>
-    <div class="fg"><label>Email</label><input id="su-e" type="email" autocomplete="email" placeholder="arjun@email.com"></div>
-    <div class="fg"><label>Address</label><input id="su-addr" autocomplete="address-level2" placeholder="City, State (e.g. Lucknow, UP)"></div>
-    <div class="fg"><label>Create Password</label><div class="pw-wrap"><input id="su-pw" type="password" autocomplete="new-password" placeholder="Min 6 characters" oninput="checkStr(this.value)"><button class="pw-eye" onclick="tglPw('su-pw',this)">👁</button></div><div class="str-bar" id="str-bar"></div><div class="str-txt" id="str-txt"></div></div>
-    <div class="fg"><label>Confirm Password</label><div class="pw-wrap"><input id="su-cpw" type="password" autocomplete="new-password" placeholder="Confirm password"><button class="pw-eye" onclick="tglPw('su-cpw',this)">👁</button></div></div>
+    <div class="fg-row"><div class="fg"><label>Full Name</label><input id="su-n" type="text" autocomplete="off" inputmode="text" placeholder="e.g. Arjun Sharma" pattern="[A-Za-z\s]+" title="Sirf naam likhein"></div><div class="fg"><label>Phone (WhatsApp)</label><div class="cc-group" id="cc-group-su-p"><div class="cc-wrap" data-for="su-p"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA/Canada)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+974">🇶🇦 +974 (Qatar)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+968">🇴🇲 +968 (Oman)</option><option value="+973">🇧🇭 +973 (Bahrain)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+65">🇸🇬 +65 (Singapore)</option><option value="+61">🇦🇺 +61 (Australia)</option><option value="+81">🇯🇵 +81 (Japan)</option><option value="+92">🇵🇰 +92 (Pakistan)</option><option value="+880">🇧🇩 +880 (Bangladesh)</option><option value="+94">🇱🇰 +94 (Sri Lanka)</option><option value="+977">🇳🇵 +977 (Nepal)</option></select><div class="cc-display">+91</div></div><input id="su-p" type="tel" autocomplete="off" inputmode="numeric" maxlength="10" placeholder="98765 43210"></div></div></div>
+    <div class="fg"><label>Email</label><input id="su-e" type="email" autocomplete="off" placeholder="arjun@email.com"></div>
+    <div class="fg"><label>Address</label><input id="su-addr" autocomplete="off" placeholder="City, State (e.g. Lucknow, UP)"></div>
+    <div class="fg"><label>Create Password</label><div class="pw-wrap"><input id="su-pw" type="password" autocomplete="off" placeholder="Min 6 characters" oninput="checkStr(this.value)"><button class="pw-eye" onclick="tglPw('su-pw',this)">👁</button></div><div class="str-bar" id="str-bar"></div><div class="str-txt" id="str-txt"></div></div>
+    <div class="fg"><label>Confirm Password</label><div class="pw-wrap"><input id="su-cpw" type="password" autocomplete="off" placeholder="Confirm password"><button class="pw-eye" onclick="tglPw('su-cpw',this)">👁</button></div></div>
     <button class="mgo" onclick="doSignup()">Create Free Account →</button>
     <p class="lnktxt">Already have an account? <span onclick="openModal('login')">Login</span></p>`;
   }
   else if(type==='login'){
     /* Auto-fill: agar pehle se koi saved session hai toh pre-fill karo */
-    var _lastEmail = '';
-    try{ _lastEmail = localStorage.getItem('ff_last_email')||''; }catch(e){}
+    var _lastEmail = ''; /* ff_last_email prefill disabled — placeholder hi dikhega */
     mc.innerHTML=`<h3>Welcome Back! 👋</h3><p class="msub">Login to continue your journey.</p>
     <!-- Social Login Buttons -->
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
@@ -5546,8 +6076,8 @@ function openModal(type,extra=''){
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:11px;color:var(--muted);white-space:nowrap">ya Email se login karo</span><div style="flex:1;height:1px;background:var(--border)"></div></div>
     <!-- Email Login Form with autocomplete support -->
-    <div class="fg"><label>Email</label><input id="li-e" type="email" autocomplete="email" placeholder="Enter email" value="${_lastEmail}"></div>
-    <div class="fg"><label>Password</label><div class="pw-wrap"><input id="li-pw" type="password" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"><button class="pw-eye" onclick="tglPw('li-pw',this)">👁</button></div></div>
+    <div class="fg"><label>Email</label><input id="li-e" type="email" autocomplete="off" inputmode="email" placeholder="e.g. arjun@gmail.com" value=""></div>
+    <div class="fg"><label>Password</label><div class="pw-wrap"><input id="li-pw" type="password" autocomplete="off" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"><button class="pw-eye" onclick="tglPw('li-pw',this)">👁</button></div></div>
     <div style="text-align:right;margin:-5px 0 12px"><span style="font-size:11px;color:var(--g2);cursor:pointer;font-weight:600" onclick="openModal('forgot-password')">Forgot password?</span></div>
     <button class="mgo" onclick="doLogin()">Login →</button>
     <p class="lnktxt">Don&#39;t have an account? <span onclick="openModal('signup')">Join for free</span></p>`;
@@ -5593,7 +6123,21 @@ function openModal(type,extra=''){
     <p class="msub">Fill in the details — trainer will be notified!</p>
     ${_trainerBanner}
     <div class="fg"><label>📚 Session Type</label><select id="bk-type">${_typeOpts}</select></div>
-    <div class="fg"><label>🧑‍💼 Trainer / Coach</label><input id="bk-trainer" value="${_bkTrainer}" placeholder="Trainer name..."></div>
+    <div class="fg"><label>🧑‍💼 Trainer / Coach ka Naam</label><input id="bk-trainer" type="text" inputmode="text" value="${_bkTrainer}" placeholder="e.g. Rahul Sharma"></div>
+    ${(function(){
+      var _reg=[];try{_reg=JSON.parse(localStorage.getItem('cardRegistry')||'[]');}catch(e){}
+      var _homeTrainers=_reg.filter(function(c){return c.homeClass==='yes';});
+      if(_homeTrainers.length===0) return '';
+      var _htm='<div style="background:rgba(0,200,83,.06);border:1.5px solid rgba(0,200,83,.2);border-radius:12px;padding:12px 14px;margin-bottom:2px">';
+      _htm+='<div style="font-size:11px;font-weight:800;color:var(--g2);margin-bottom:8px;letter-spacing:.5px">🏠 HOME CLASS WALE TRAINERS — 1 tap mein select karo</div>';
+      _htm+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+      _homeTrainers.forEach(function(t){
+        var tname=(t.name||'Trainer').split("'").join('');
+        _htm+='<button onclick="document.getElementById(\'bk-trainer\').value=\''+tname+'\';this.parentNode.querySelectorAll(\'button\').forEach(function(b){b.style.background=\'rgba(0,200,83,.1)\';b.style.borderColor=\'rgba(0,200,83,.3)\'});this.style.background=\'rgba(0,200,83,.25)\';this.style.borderColor=\'var(--g1)\'" style="padding:6px 12px;border-radius:20px;border:1.5px solid rgba(0,200,83,.3);background:rgba(0,200,83,.1);color:var(--g2);font-size:11px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif;transition:all .2s">'+(t.icon||'🏠')+' '+t.name+'</button>';
+      });
+      _htm+='</div></div>';
+      return _htm;
+    })()}
     <div class="fg-row">
       <div class="fg"><label>📅 Date</label><input id="bk-date" type="date" min="${new Date().toISOString().split('T')[0]}"></div>
       <div class="fg"><label>⏰ Class Time</label><select id="bk-time">${_timeOpts}</select></div>
@@ -5604,9 +6148,15 @@ function openModal(type,extra=''){
           <input type="radio" id="bk-mode-off" name="bk-mode" value="offline" ${_bkMode!=='online'?'checked':''} style="accent-color:var(--g1)">
           🏢 Offline (Center)
         </label>
-        <label id="bk-mode-on-lbl" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:1.5px solid ${_bkMode==='online'?'var(--g1)':'var(--border)'};background:${_bkMode==='online'?'rgba(0,200,83,.08)':'var(--dark)'};cursor:pointer;font-size:13px;font-weight:700;transition:all .2s" onclick="document.getElementById('bk-mode-on').checked=true;this.style.borderColor='var(--g1)';this.style.background='rgba(0,200,83,.08)';document.querySelector('label[onclick*=bk-mode-off]').style.borderColor='var(--border)';document.querySelector('label[onclick*=bk-mode-off]').style.background='var(--dark)'">
+        <label id="bk-mode-on-lbl" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:1.5px solid ${_bkMode==='online'?'var(--g1)':'var(--border)'};background:${_bkMode==='online'?'rgba(0,200,83,.08)':'var(--dark)'};cursor:pointer;font-size:13px;font-weight:700;transition:all .2s" onclick="document.getElementById('bk-mode-on').checked=true;this.style.borderColor='var(--g1)';this.style.background='rgba(0,200,83,.08)';document.querySelector('label[onclick*=bk-mode-off]').style.borderColor='var(--border)';document.querySelector('label[onclick*=bk-mode-off]').style.background='var(--dark)';document.getElementById('bk-mode-home-lbl').style.borderColor='var(--border)';document.getElementById('bk-mode-home-lbl').style.background='var(--dark)'">
           <input type="radio" id="bk-mode-on" name="bk-mode" value="online" ${_bkMode==='online'?'checked':''} style="accent-color:var(--g1)">
           💻 Online (Video)
+        </label>
+      </div>
+      <div style="display:flex;margin-top:6px">
+        <label id="bk-mode-home-lbl" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;border:1.5px solid ${_bkMode==='home'?'var(--g1)':'var(--border)'};background:${_bkMode==='home'?'rgba(0,200,83,.08)':'var(--dark)'};cursor:pointer;font-size:13px;font-weight:700;transition:all .2s" onclick="document.getElementById('bk-mode-home').checked=true;this.style.borderColor='var(--g1)';this.style.background='rgba(0,200,83,.08)';document.querySelector('label[onclick*=bk-mode-off]').style.borderColor='var(--border)';document.querySelector('label[onclick*=bk-mode-off]').style.background='var(--dark)';document.getElementById('bk-mode-on-lbl').style.borderColor='var(--border)';document.getElementById('bk-mode-on-lbl').style.background='var(--dark)'">
+          <input type="radio" id="bk-mode-home" name="bk-mode" value="home" ${_bkMode==='home'?'checked':''} style="accent-color:var(--g1)">
+          🏠 Home Visit (Trainer aayega)
         </label>
       </div>
     </div>
@@ -5619,8 +6169,8 @@ function openModal(type,extra=''){
   }
   else if(type==='diet-form'){
     mc.innerHTML=`<h3>Get a Diet Plan 🥗</h3><p class="msub">Tell us your goal, get a personalized plan!</p>
-    <div class="fg"><label>Your Name</label><input placeholder="e.g. Priya Sharma"></div>
-    <div class="fg"><label>Email</label><input type="email" placeholder="email@example.com"></div>
+    <div class="fg"><label>Aapka Naam</label><input type="text" inputmode="text" placeholder="e.g. Priya Sharma"></div>
+    <div class="fg"><label>Email</label><input type="email" inputmode="email" autocomplete="email" placeholder="e.g. priya@gmail.com"></div>
     <div class="fg-row"><div class="fg"><label>Goal</label><select><option>Weight Loss</option><option>Muscle Gain</option><option>Maintain Weight</option><option>Health Condition</option></select></div><div class="fg"><label>Food Preference</label><select><option>Vegetarian</option><option>Non-Vegetarian</option><option>Vegan</option><option>Jain</option></select></div></div>
     <div style="display:flex;gap:8px;margin-top:4px"><button class="mgo" style="flex:1;margin:0" onclick="success('🥗','Plan Ready!','Personalized diet plan has been sent to your email!')">Get My Diet Plan →</button><button style="flex:1;padding:12px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif" onclick="document.querySelectorAll('#mc input').forEach(function(i){i.value=''})">↺ Reset</button></div>`;
   }
@@ -5722,8 +6272,8 @@ function openModal(type,extra=''){
     <!-- Basic Info -->
     <div style="font-size:10px;font-weight:700;color:var(--g2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">👤 Basic Info</div>
     <div class="fg-row"><div class="fg"><label>Full Name</label><input id="edit-n" value="${u.name}"></div><div class="fg"><label>Gender</label><select id="edit-gender"><option value="">Select</option><option ${u.gender==='Male'?'selected':''}  value="Male">Male</option><option ${u.gender==='Female'?'selected':''}  value="Female">Female</option><option ${u.gender==='Other'?'selected':''}  value="Other">Other</option></select></div></div>
-    <div class="fg-row"><div class="fg"><label>Phone</label><input id="edit-p" type="tel" value="${u.phone||''}" placeholder="+91 9876543210"></div><div class="fg"><label>Date of Birth</label><input id="edit-dob" type="date" value="${u.dob||''}" max="${new Date().toISOString().split('T')[0]}"></div></div>
-    <div class="fg"><label>Address / City</label><input id="edit-addr" value="${u.address||''}" placeholder="City, State"></div>
+    <div class="fg-row"><div class="fg"><label>📱 Phone (WhatsApp)</label><div class="cc-group" id="cc-group-edit-p"><div class="cc-wrap" data-for="edit-p"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+974">🇶🇦 +974 (Qatar)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+968">🇴🇲 +968 (Oman)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+65">🇸🇬 +65 (Singapore)</option><option value="+61">🇦🇺 +61 (Australia)</option><option value="+92">🇵🇰 +92 (Pakistan)</option><option value="+880">🇧🇩 +880 (Bangladesh)</option><option value="+977">🇳🇵 +977 (Nepal)</option></select><div class="cc-display">+91</div></div><input id="edit-p" type="tel" inputmode="numeric" autocomplete="tel" maxlength="10" value="${u.phone||''}" placeholder="98765 43210"></div></div><div class="fg"><label>Date of Birth</label><input id="edit-dob" type="date" value="${u.dob||''}" max="${new Date().toISOString().split('T')[0]}"></div></div>
+    <div class="fg"><label>📍 Address / City</label><input id="edit-addr" type="text" inputmode="text" value="${u.address||''}" placeholder="e.g. Lucknow, Uttar Pradesh"></div>
     <div class="fg"><label>Bio / About Me</label><textarea id="edit-bio" placeholder="Apne baare mein kuch likho..." style="min-height:55px">${u.bio||''}</textarea></div>
     <!-- Fitness Info -->
     <div style="font-size:10px;font-weight:700;color:var(--g2);letter-spacing:1.5px;text-transform:uppercase;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">💪 Fitness Details</div>
@@ -5780,7 +6330,7 @@ function openModal(type,extra=''){
     <p class="msub">Questions, feedback or suggestions — we're here to listen! We reply within 24 hours.</p>
     <div class="fg-row">
       <div class="fg"><label>Full Name <span style="color:#F50057">*</span></label><input id="cf-name" type="text" autocomplete="name" placeholder="e.g. Rahul Kumar"></div>
-      <div class="fg"><label>Phone Number</label><input id="cf-phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210"></div>
+      <div class="fg"><label>Phone Number</label><div class="cc-group" id="cc-group-cf-phone"><div class="cc-wrap" data-for="cf-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+974">🇶🇦 +974 (Qatar)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+968">🇴🇲 +968 (Oman)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+65">🇸🇬 +65 (Singapore)</option><option value="+61">🇦🇺 +61 (Australia)</option><option value="+92">🇵🇰 +92 (Pakistan)</option></select><div class="cc-display">+91</div></div><input id="cf-phone" type="tel" autocomplete="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210"></div></div>
     </div>
     <div class="fg"><label>Email Address <span style="color:#F50057">*</span></label><input id="cf-email" type="email" autocomplete="email" placeholder="rahul@email.com"></div>
     <div class="fg-row">
@@ -5818,7 +6368,7 @@ function openModal(type,extra=''){
     <h3>Forgot Password? 🔐</h3>
     <p class="msub">Enter your registered email — an OTP will be sent!</p>
     <div class="fg"><label>Registered Email <span style="color:#F50057">*</span></label>
-    <input id="fp-email" type="email" placeholder="Enter your email address" autocomplete="email"></div>
+    <input id="fp-email" type="email" inputmode="email" autocomplete="email" placeholder="e.g. arjun@gmail.com"></div>
     <button class="mgo" id="fp-send-btn" onclick="fpSendOTP()">Send OTP →</button>
     <p class="lnktxt" style="margin-top:10px">Password yaad hai? <span onclick="openModal('login')">Login</span></p>`;
   }
@@ -6289,7 +6839,7 @@ function _renderPWStep(u){
       /* Fields */
       + '<div class="fg-row"><div class="fg"><label>Full Name <span style="color:#F50057">*</span></label><input id="pw-name" value="'+(u.name||'')+'" placeholder="Aapka poora naam"></div>'
       + '<div class="fg"><label>Gender</label><select id="pw-gender"><option value="">Select</option><option '+(u.gender==='Male'?'selected':'')+' value="Male">Male</option><option '+(u.gender==='Female'?'selected':'')+' value="Female">Female</option><option '+(u.gender==='Other'?'selected':'')+' value="Other">Other</option></select></div></div>'
-      + '<div class="fg-row"><div class="fg"><label>Phone <span style="color:#F50057">*</span></label><input id="pw-phone" type="tel" value="'+(u.phone||'')+'" placeholder="+91 9876543210"></div>'
+      + '<div class="fg-row"><div class="fg"><label>Phone <span style="color:#F50057">*</span></label><div class="cc-group" id="cc-group-pw-phone"><div class="cc-wrap" data-for="pw-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+974">🇶🇦 +974 (Qatar)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+968">🇴🇲 +968 (Oman)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+61">🇦🇺 +61 (Australia)</option></select><div class="cc-display">+91</div></div><input id="pw-phone" type="tel" inputmode="numeric" maxlength="10" value="'+(u.phone||'')+'" placeholder="98765 43210"></div></div>'
       + '<div class="fg"><label>Date of Birth</label><input id="pw-dob" type="date" value="'+(u.dob||'')+'" max="'+new Date().toISOString().split('T')[0]+'"></div></div>'
       + '<div class="fg"><label>Email</label><input value="'+(u.email||'')+'" disabled style="opacity:.6"></div>'
       + '<div class="fg"><label>Address / City</label><input id="pw-addr" value="'+(u.address||'')+'" placeholder="City, State, India"></div>'
@@ -6509,7 +7059,7 @@ function _renderCWStep(){
       + _cwStepBar(1)
       + '<div style="background:rgba(0,200,83,.05);border:1px solid rgba(0,200,83,.15);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--muted)">ℹ️ Ye details aapki profile se auto-fill hain. Jarurat ho to change kar sakte hain.</div>'
       + '<div class="fg-row"><div class="fg"><label>Full Name <span style="color:#F50057">*</span></label><input id="cw-name" value="'+(u.name||'')+'" placeholder="Aapka naam"></div>'
-      + '<div class="fg"><label>Phone <span style="color:#F50057">*</span></label><input id="cw-phone" type="tel" value="'+(u.phone||'')+'" placeholder="+91 9876543210"></div></div>'
+      + '<div class="fg"><label>Phone <span style="color:#F50057">*</span></label><div class="cc-group" id="cc-group-cw-phone"><div class="cc-wrap" data-for="cw-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+61">🇦🇺 +61 (Australia)</option></select><div class="cc-display">+91</div></div><input id="cw-phone" type="tel" inputmode="numeric" maxlength="10" value="'+(u.phone||'')+'" placeholder="98765 43210"></div></div></div>'
       + '<div class="fg"><label>Email</label><input id="cw-email" value="'+(u.email||'')+'" placeholder="email@example.com"></div>'
       + '<div class="fg"><label>Address / City</label><input id="cw-addr" value="'+(u.address||'')+'" placeholder="City, State"></div>'
       + '<div class="fg-row"><div class="fg"><label>Age</label><input id="cw-age" type="number" value="'+(u.age||'')+'" placeholder="25"></div>'
@@ -6761,11 +7311,6 @@ function _cwSubmit(){
     DB.save('users', allUsers);
   }
 
-  /* Email */
-  if(typeof sendWelcomeEmail === 'function' && u.email){
-    sendWelcomeEmail(u.name, u.email, sec+' Card — "'+_cwData.title+'"');
-  }
-
   /* Go to section */
   if(map && typeof gotoSec === 'function') setTimeout(function(){ gotoSec(map.id); },300);
 
@@ -6864,7 +7409,11 @@ function previewPhoto(inp){
 /* ── CONTACT FORM SUBMIT — Reliable local-first approach ── */
 function submitContactForm(){
   var name    = (document.getElementById('cf-name')    ||{}).value||'';
-  var phone   = (document.getElementById('cf-phone')   ||{}).value||'';
+  /* Phone with country code */
+  var _cfCCSel = document.querySelector('#cc-group-cf-phone .cc-sel');
+  var _cfCC = _cfCCSel ? _cfCCSel.value : '+91';
+  var _cfNum = ((document.getElementById('cf-phone')||{}).value||'').replace(/[^0-9]/g,'');
+  var phone = _cfNum ? _cfCC + _cfNum : '';
   var email   = (document.getElementById('cf-email')   ||{}).value||'';
   var subject = (document.getElementById('cf-subject') ||{}).value||'';
   var priority= (document.getElementById('cf-priority')||{}).value||'Normal';
@@ -6896,48 +7445,34 @@ function submitContactForm(){
     addNotif('\ud83d\udcec','New Contact Message!',name.trim()+' \u2014 '+subject);
   }
 
-  /* Step 3: Formspree se direct email to admin
-   * SETUP: https://formspree.io pe free account banao
-   * Steps:
-   *   1. formspree.io pe jaao → Sign Up (free)
-   *   2. "New Form" click karo
-   *   3. Apna email daalo: rishabhjalvanshi@gmail.com
-   *   4. Form ID milegi (jaise: xpwzgkqr)
-   *   5. Niche FORMSPREE_ID variable mein woh ID daalo aur save karo
-   */
-  var FORMSPREE_ID = 'xpwzgkqr'; /* <-- APNI FORMSPREE FORM ID YAHAN DAALO */
-
-  var formData = new FormData();
-  formData.append('name',     name.trim());
-  formData.append('email',    email.trim());
-  formData.append('phone',    phone.trim()||'Not provided');
-  formData.append('subject',  '['+priority+'] '+subject);
-  formData.append('message',  msg.trim());
-  formData.append('source',   source||'Not specified');
-  formData.append('sent_at',  now);
-  formData.append('_subject', '\ud83d\udcec Fit&Fine Contact: '+subject+' ['+priority+']');
-  formData.append('_replyto', email.trim());
-
-  fetch('https://formspree.io/f/'+FORMSPREE_ID,{
-    method:'POST', body:formData, headers:{'Accept':'application/json'}
-  })
-  .then(function(res){
-    if(btn){btn.textContent='Send Message \u2192';btn.disabled=false;btn.style.opacity='1';}
-    if(res.ok){
-      success('\ud83d\udcec','Message Sent! \u2705',
-        'Dhanyawaad '+name.trim()+'! \ud83d\ude4f\n\nAdmin ko email bhej diya gaya!\n'+email+' pe 24 ghante mein reply milega. \u2705');
-    } else {
-      success('\ud83d\udcec','Message Received! \u2705',
-        'Dhanyawaad '+name.trim()+'! \ud83d\ude4f\n\nAapka message save ho gaya.\n'+email+' pe 24 ghante mein reply milega.');
+  /* Step 3: EmailJS se admin ko contact mail bhejo */
+  var tpl = {
+    to_email:   'rishabhjalvanshi@gmail.com',
+    from_name:  name.trim(),
+    from_email: email.trim(),
+    email:      email.trim(),
+    reply_to:   email.trim(),
+    phone:      phone.trim() || 'Not provided',
+    subject:    '['+priority+'] '+subject,
+    message:    msg.trim(),
+    source:     source || 'Not specified',
+    sent_at:    now,
+    priority:   priority
+  };
+  sendContactEmail(tpl,
+    function(){
+      if(btn){btn.textContent='Send Message →';btn.disabled=false;btn.style.opacity='1';}
+      success('📬','Message Sent! ✅','Dhanyawaad '+name.trim()+'! Admin ko message bhej diya gaya. '+email+' pe reply milega. ✅');
+      ['cf-name','cf-email','cf-phone','cf-msg'].forEach(function(id){ var el=document.getElementById(id);if(el)el.value=''; });
+      try{document.getElementById('cf-subject').value='';}catch(e){}
+      try{document.getElementById('cf-source').value='';}catch(e){}
+    },
+    function(){
+      if(btn){btn.textContent='Send Message →';btn.disabled=false;btn.style.opacity='1';}
+      success('📬','Message Received!','Dhanyawaad '+name.trim()+'! Aapka message save ho gaya. '+email+' pe 24 ghante mein reply milega.');
     }
-  })
-  .catch(function(){
-    if(btn){btn.textContent='Send Message \u2192';btn.disabled=false;btn.style.opacity='1';}
-    success('\ud83d\udcec','Message Received! \u2705',
-      'Dhanyawaad '+name.trim()+'! \ud83d\ude4f\n\nAapka message save ho gaya.\n'+email+' pe 24 ghante mein reply milega.');
-  });
+  );
 }
-
 
 function _contactMailtoFallback(p){
   var body = [
@@ -6965,6 +7500,11 @@ function success(icon,title,msg){
 function closeModal(){
   document.getElementById('overlay').classList.remove('on');
   document.body.classList.remove('modal-open');
+  /* ── Scroll position wapas restore karo ── */
+  document.body.style.top = '';
+  var _sy = window._modalScrollY || 0;
+  window.scrollTo(0, _sy);
+  window._modalScrollY = 0;
   // Also close any open panels
   document.getElementById('np').classList.remove('open');
   var av=document.getElementById('nav-av');
@@ -8286,12 +8826,12 @@ function renderCartModal(){
       +'<div style="font-size:11px;color:var(--muted)">₹'+item.price+' each</div>'
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
-      +'<button onclick="cartQty(\''+name.replace(/'/g,"\\'")+'\',-1)" style="width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">−</button>'
+      +'<button onclick="cartQty(\''+name.split("'").join('')+'\',-1)" style="width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">−</button>'
       +'<span style="font-size:13px;font-weight:700;min-width:20px;text-align:center">'+item.qty+'</span>'
-      +'<button onclick="cartQty(\''+name.replace(/'/g,"\\'")+'\',-1+2)" style="width:24px;height:24px;border-radius:50%;border:1.5px solid var(--g1);background:rgba(0,200,83,.1);color:var(--g2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">+</button>'
+      +'<button onclick="cartQty(\''+name.split("'").join('')+'\',-1+2)" style="width:24px;height:24px;border-radius:50%;border:1.5px solid var(--g1);background:rgba(0,200,83,.1);color:var(--g2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700">+</button>'
       +'</div>'
       +'<div style="font-size:13px;font-weight:800;min-width:52px;text-align:right;flex-shrink:0">₹'+(item.price*item.qty)+'</div>'
-      +'<button onclick="cartRemove(\''+name.replace(/'/g,"\\'")+'\')" style="width:22px;height:22px;border-radius:50%;border:none;background:rgba(244,67,54,.1);color:var(--red);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'
+      +'<button onclick="cartRemove(\''+name.split("'").join('')+'\')" style="width:22px;height:22px;border-radius:50%;border:none;background:rgba(244,67,54,.1);color:var(--red);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>'
       +'</div>';
   }).join('');
 
@@ -8386,13 +8926,13 @@ function openCheckout(step){
       +'<div style="flex:1;height:4px;border-radius:4px;background:var(--border)"></div>'
       +'</div>'
       +'<div class="fg-row">'
-      +'<div class="fg"><label>Full Name *</label><input id="del-name" placeholder="Enter your name" value="'+(saved.name||'')+'"></div>'
-      +'<div class="fg"><label>Phone *</label><input id="del-phone" type="tel" placeholder="+91 XXXXX XXXXX" value="'+(saved.phone||'')+'"></div>'
+      +'<div class="fg"><label>Full Name *</label><input id="del-name" type="text" inputmode="text" placeholder="e.g. Arjun Sharma" value="'+(saved.name||'')+'"></div>'
+      +'<div class="fg"><label>📱 Phone *</label><div class="cc-group" id="cc-group-del-phone"><div class="cc-wrap" data-for="del-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option><option value="+965">🇰🇼 +965 (Kuwait)</option><option value="+60">🇲🇾 +60 (Malaysia)</option><option value="+61">🇦🇺 +61 (Australia)</option></select><div class="cc-display">+91</div></div><input id="del-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" value="'+(saved.phone||'')+'"></div></div>'
       +'</div>'
       +'<div class="fg"><label>Email</label><input id="del-email" type="email" placeholder="your@email.com" value="'+(saved.email||'')+'"></div>'
       +'<div class="fg"><label>Full Address *</label><textarea id="del-addr" placeholder="House/Flat No., Street, Area..." style="min-height:68px">'+(saved.addr||'')+'</textarea></div>'
       +'<div class="fg-row">'
-      +'<div class="fg"><label>City *</label><input id="del-city" placeholder="City" value="'+(saved.city||'')+'"></div>'
+      +'<div class="fg"><label>🏙️ City *</label><input id="del-city" type="text" inputmode="text" placeholder="e.g. Lucknow" value="'+(saved.city||'')+'"></div>'
       +'<div class="fg"><label>State *</label>'
       +'<select id="del-state">'
       +['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal'].map(function(s){return '<option'+(saved.state===s?' selected':'')+'>'+s+'</option>';}).join('')
@@ -8751,6 +9291,156 @@ function toggleLightMode(){
   showToast(isLight?'☀️ Light mode on!':'🌙 Dark mode on!');
 }
 function toggleTheme(){toggleLightMode();}
+
+/* ── Country Codes List ── */
+var COUNTRY_CODES = [
+  {code:'+91', flag:'🇮🇳', name:'India'},
+  {code:'+1',  flag:'🇺🇸', name:'USA/Canada'},
+  {code:'+44', flag:'🇬🇧', name:'UK'},
+  {code:'+971',flag:'🇦🇪', name:'UAE'},
+  {code:'+966',flag:'🇸🇦', name:'Saudi Arabia'},
+  {code:'+974',flag:'🇶🇦', name:'Qatar'},
+  {code:'+965',flag:'🇰🇼', name:'Kuwait'},
+  {code:'+968',flag:'🇴🇲', name:'Oman'},
+  {code:'+973',flag:'🇧🇭', name:'Bahrain'},
+  {code:'+60', flag:'🇲🇾', name:'Malaysia'},
+  {code:'+65', flag:'🇸🇬', name:'Singapore'},
+  {code:'+61', flag:'🇦🇺', name:'Australia'},
+  {code:'+49', flag:'🇩🇪', name:'Germany'},
+  {code:'+33', flag:'🇫🇷', name:'France'},
+  {code:'+39', flag:'🇮🇹', name:'Italy'},
+  {code:'+81', flag:'🇯🇵', name:'Japan'},
+  {code:'+86', flag:'🇨🇳', name:'China'},
+  {code:'+92', flag:'🇵🇰', name:'Pakistan'},
+  {code:'+880',flag:'🇧🇩', name:'Bangladesh'},
+  {code:'+94', flag:'🇱🇰', name:'Sri Lanka'},
+  {code:'+977',flag:'🇳🇵', name:'Nepal'},
+  {code:'+27', flag:'🇿🇦', name:'South Africa'},
+  {code:'+234',flag:'🇳🇬', name:'Nigeria'},
+  {code:'+254',flag:'🇰🇪', name:'Kenya'},
+];
+
+/* ── Build country code dropdown HTML ── */
+function _ccDropdown(inputId, defaultCode){
+  var def = defaultCode || '+91';
+  var opts = COUNTRY_CODES.map(function(c){
+    return '<option value="'+c.code+'"'+(c.code===def?' selected':'')+'>'+c.flag+' '+c.code+' ('+c.name+')</option>';
+  }).join('');
+  return '<div class="cc-wrap" data-for="'+inputId+'">'
+    +'<select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code">'+opts+'</select>'
+    +'<div class="cc-display" onclick="this.previousElementSibling.focus()">'+def+'</div>'
+    +'</div>';
+}
+
+/* ── When dropdown changes, update display label ── */
+function _ccChange(sel){
+  var display = sel.nextElementSibling;
+  if(display) display.textContent = sel.value;
+  /* Find associated input and strip any old country code */
+  var wrap = sel.closest('.cc-wrap');
+  if(!wrap) return;
+  var inputId = wrap.getAttribute('data-for');
+  var inp = document.getElementById(inputId);
+  if(!inp) return;
+  /* Remove existing country code from value */
+  var v = inp.value.replace(/[^0-9]/g,'');
+  inp.value = v;
+  inp.focus();
+}
+
+/* ── Get full phone with country code from a cc-group ── */
+function _getFullPhone(inputId){
+  var inp = document.getElementById(inputId);
+  if(!inp) return '';
+  var wrap = inp.closest('.cc-group') || inp.parentElement.closest('.cc-group');
+  var sel = wrap ? wrap.querySelector('.cc-sel') : null;
+  var code = sel ? sel.value : '+91';
+  var num = inp.value.replace(/[^0-9]/g,'');
+  return num ? code + num : '';
+}
+
+/* ── Phone Validation + Country Code Helper ── */
+function _validatePhone(val){
+  var v = val.replace(/\s/g,'');
+  if(v.startsWith('+')) return /^\+\d{7,14}$/.test(v);
+  return /^\d{10}$/.test(v);
+}
+function _fmtPhone(input){
+  /* Strip non-numeric (keep + only if already at start) */
+  var raw = input.value;
+  var v = raw.replace(/[^0-9]/g,'');
+  /* If inside a cc-group, the country code is handled by the dropdown */
+  var grp = input.closest ? input.closest('.cc-group') : null;
+  if(grp){
+    input.value = v; /* just digits */
+  } else {
+    /* Standalone tel input — auto +91 if 10 digits */
+    if(/^\d{10}$/.test(v)){
+      input.value = '+91' + v;
+    } else {
+      input.value = v;
+    }
+  }
+}
+/* Attach to all tel inputs on page load */
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('input[type="tel"]').forEach(function(el){
+    el.addEventListener('blur', function(){ _fmtPhone(this); });
+    /* Only allow digits inside cc-group */
+    var grp = el.closest ? el.closest('.cc-group') : null;
+    if(grp) el.addEventListener('input', function(){ this.value = this.value.replace(/[^0-9]/g,''); });
+  });
+});
+function _nbCenterBtn(c){
+  if(c.hasCenter!=='yes'||!c.centerLat||!c.centerLng) return '';
+  var nm=(c.centerName||c.name+' Center');
+  return '<button class="nb-card-btn" onclick="event.stopPropagation();nbShowRoute('+c.centerLat+','+c.centerLng+',encodeURIComponent(\''+nm.split("'").join('')+'\'))" style="background:rgba(255,109,0,.12);border-color:rgba(255,109,0,.4);color:#FF6D00">🏢 Center</button>';
+}
+function _hcToggle(span){
+  var c=document.getElementById('ef-homeclass');
+  c.checked=!c.checked;
+  span.style.background=c.checked?'var(--g1)':'#333';
+  var dot=span.querySelector('span');
+  if(dot) dot.style.marginLeft=c.checked?'22px':'0';
+}
+function _cnToggle(span){
+  var c=document.getElementById('ef-hascenter');
+  if(!c) return;
+  c.checked=!c.checked;
+  span.style.background=c.checked?'#00B0FF':'#333';
+  var dot=span.querySelector('span');
+  if(dot) dot.style.marginLeft=c.checked?'22px':'0';
+  _centerToggleFields(c.checked);
+}
+function _centerToggleFields(show){
+  var f=document.getElementById('ef-center-fields');
+  if(f) f.style.display=show?'flex':'none';
+}
+function _centerGetGPS(){
+  var st=document.getElementById('ef-center-gps-status');
+  if(st) st.textContent='📡 Center ki location detect ho rahi hai...';
+  if(!navigator.geolocation){if(st)st.textContent='❌ GPS not supported';return;}
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var lat=pos.coords.latitude, lng=pos.coords.longitude;
+    var latEl=document.getElementById('ef-centerlat');
+    var lngEl=document.getElementById('ef-centerlng');
+    if(latEl) latEl.value=lat;
+    if(lngEl) lngEl.value=lng;
+    /* Reverse geocode */
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+lat+'&lon='+lng)
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var addr=d.display_name||'Location detected';
+        var addrEl=document.getElementById('ef-centeraddr');
+        if(addrEl && !addrEl.value) addrEl.value=addr;
+        if(st) st.innerHTML='✅ <span style="color:var(--g1)">Center location saved!</span> '+addr.substring(0,50)+'...';
+      }).catch(function(){
+        if(st) st.innerHTML='✅ <span style="color:var(--g1)">GPS saved</span> · '+lat.toFixed(4)+', '+lng.toFixed(4);
+      });
+  },function(){
+    if(st) st.textContent='❌ Location access denied. Address manually enter karo.';
+  },{enableHighAccuracy:true,timeout:10000});
+}
 
 /* ⚡ FAB QUICK ACTIONS */
 var _fabOpen=false;
@@ -9686,7 +10376,7 @@ function nbFullRoadmap(lat, lng, name){
       +'<div style="font-size:24px">🚗</div><div style="font-size:16px;font-weight:900;font-family:Nunito,sans-serif;color:#00B0FF">'+driveM+'</div><div style="font-size:10px;color:var(--muted)">min drive</div></div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:8px">'
-      +'<button onclick="nbShowRoute('+lat+','+lng+',\''+name.replace(/'/g,"\'")+'\');" style="padding:12px;border-radius:50px;border:none;background:linear-gradient(135deg,#00B0FF,#0080cc);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🧭 Map pe Rasta Dekho</button>'
+      +'<button onclick="nbShowRoute('+lat+','+lng+',\''+name.split("'").join('')+'\');" style="padding:12px;border-radius:50px;border:none;background:linear-gradient(135deg,#00B0FF,#0080cc);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🧭 Map pe Rasta Dekho</button>'
       +'<button onclick="window.open(\''+gdir+'\',\'_blank\')" style="padding:12px;border-radius:50px;border:1.5px solid rgba(255,109,0,.5);background:rgba(255,109,0,.1);color:var(--orange);font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🗺️ Google Maps mein Open Karo</button>'
       +'<button onclick="window.open(\''+waze+'\',\'_blank\')" style="padding:12px;border-radius:50px;border:1.5px solid rgba(170,0,255,.4);background:rgba(170,0,255,.08);color:#AA00FF;font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🚕 Waze se Navigate Karo</button>'
       +'<button onclick="document.getElementById(\'nb-roadmap-sheet\').remove()" style="padding:10px;border-radius:50px;border:1px solid #333;background:transparent;color:#666;font-size:12px;cursor:pointer;font-family:Poppins,sans-serif">Close</button>'
@@ -9935,7 +10625,7 @@ function _nbRenderCards(places) {
       html: '<div style="background:'+p.color+';width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;border:2.5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)">'+p.icon+'</div>',
       className: '', iconSize: [32,32], iconAnchor: [16,16], popupAnchor: [0,-16]
     });
-    var pname = p.name.replace(/'/g,"\\'");
+    var pname = p.name.split("'").join('');
     var mk = L.marker([p.lat, p.lng], { icon: ico }).addTo(_nbMap)
       .bindPopup(
         '<b style="font-size:13px">'+p.name+'</b>'
@@ -9949,18 +10639,20 @@ function _nbRenderCards(places) {
   /* ── Map markers — user cards ── */
   userPlaces.forEach(function(p) {
     if (!_nbMap || typeof L === 'undefined') return;
+    var c = p._cardData;
+    var isHome = c.homeClass==='yes';
     var ico = L.divIcon({
       html: '<div style="position:relative">'
         +'<div style="background:'+p.color+';width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;border:2.5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)">'+p.icon+'</div>'
-        +'<div style="position:absolute;top:-5px;right:-5px;background:#FFD600;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:1px solid #000">⭐</div>'
+        +'<div style="position:absolute;top:-5px;right:-5px;background:'+(isHome?'#00C853':'#FFD600')+';border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:1px solid #000">'+(isHome?'🏠':'⭐')+'</div>'
         +'</div>',
       className: '', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]
     });
-    var c = p._cardData;
-    var cname = p.name.replace(/'/g,"\\'");
+    var cname = p.name.split("'").join('');
     var mk = L.marker([p.lat, p.lng], { icon: ico }).addTo(_nbMap)
       .bindPopup(
         '<b style="font-size:13px">'+p.name+'</b>'
+        +(isHome?'<span style="display:inline-block;margin-left:5px;font-size:9px;background:rgba(0,200,83,.2);color:#00C853;padding:1px 5px;border-radius:8px;font-weight:700">🏠 Home Class</span>':'')
         +'<br><small style="color:#888">⭐ Member · '+(p.creator?p.creator.name:'')+'</small>'
         +'<br><small style="color:#00C853;font-weight:700">📍 '+_nbFmt(p.dist)+'</small>'
         +'<br><div style="display:flex;gap:5px;margin-top:5px">'
@@ -9969,8 +10661,32 @@ function _nbRenderCards(places) {
         +'</div>'
       );
     _nbMarkers.push(mk);
-  });
 
+    /* ── Center ka ALAG marker — agar trainer ka khud ka center hai ── */
+    if(c.hasCenter==='yes' && c.centerLat && c.centerLng){
+      var centerDist = _nbUserLat&&_nbUserLng ? _nbHaversine(_nbUserLat,_nbUserLng,c.centerLat,c.centerLng) : 0;
+      var ctrName = (c.centerName||c.name+' Center').split("'").join('');
+      var ctrIco = L.divIcon({
+        html: '<div style="position:relative">'
+          +'<div style="background:#00B0FF;width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:21px;border:3px solid #fff;box-shadow:0 3px 14px rgba(0,176,255,.6)">🏢</div>'
+          +'<div style="position:absolute;top:-6px;right:-6px;background:#FF6D00;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:8px;border:2px solid #fff;font-weight:900;color:#fff;font-family:Poppins,sans-serif">C</div>'
+          +'</div>',
+        className: '', iconSize: [40,40], iconAnchor: [20,20], popupAnchor: [0,-22]
+      });
+      var ctrMk = L.marker([c.centerLat, c.centerLng], {icon: ctrIco}).addTo(_nbMap)
+        .bindPopup(
+          '<b style="font-size:13px">🏢 '+(c.centerName||c.name+' Center')+'</b>'
+          +'<br><small style="color:#00B0FF;font-weight:700">Trainer ka Center · '+(c.creator?c.creator.name:c.name)+'</small>'
+          +(centerDist>0?'<br><small style="color:#00C853;font-weight:700">📍 '+_nbFmt(centerDist)+' door</small>':'')
+          +(c.centerAddr?'<br><small style="color:#888">'+c.centerAddr.substring(0,60)+'</small>':'')
+          +'<br><div style="display:flex;gap:5px;margin-top:6px">'
+          +'<button onclick="nbShowRoute('+c.centerLat+','+c.centerLng+',\''+ctrName+'\')" style="flex:1;padding:5px 8px;border-radius:20px;border:none;background:#00B0FF;color:#000;font-size:10px;font-weight:700;cursor:pointer">🧭 Rasta Dekho</button>'
+          +'<button onclick="nbOpenUserCard(\''+c.id+'\')" style="flex:1;padding:5px 8px;border-radius:20px;border:none;background:#00C853;color:#000;font-size:10px;font-weight:700;cursor:pointer">👁 Trainer Card</button>'
+          +'</div>'
+        );
+      _nbMarkers.push(ctrMk);
+    }
+  });
   if (_nbMap && _nbMarkers.length > 0) {
     try {
       var allPts = [];
@@ -10005,18 +10721,17 @@ function _nbRenderCards(places) {
       var cName = p.creator?p.creator.name:'Member';
       var cPhone = p.creator&&p.creator.phone?p.creator.phone:'';
       var distStr = p.dist<1000?Math.round(p.dist)+'m':(p.dist/1000).toFixed(1)+'km';
-      var walkMin = Math.round(p.dist/80);
-      var driveMin = Math.round(p.dist/600);
       var tagsHtml = (p.tags||[]).slice(0,3).map(function(t){return '<span class="nb-card-tag">'+t+'</span>';}).join('');
+      var homeTag = c.homeClass==='yes'?'<span class="nb-card-tag" style="background:rgba(0,200,83,.18);border:1px solid rgba(0,200,83,.3);color:var(--g2)">🏠 Home Class</span>':'';
       var pLat=p.lat, pLng=p.lng;
-      var pname = p.name.replace(/'/g,"\\'");
-      html += '<div class="nb-card" onclick="nbOpenUserCard(\''+c.id+'\')" style="border-color:rgba(0,200,83,.2);background:linear-gradient(135deg,rgba(0,200,83,.04),rgba(0,200,83,.01))">'
+      var pname = p.name.split("'").join('');
+      html += '<div class="nb-card" onclick="nbOpenUserCard(\''+c.id+'\')" style="border-color:'+(c.homeClass==='yes'?'rgba(0,200,83,.4)':'rgba(0,200,83,.2)')+';background:linear-gradient(135deg,rgba(0,200,83,.04),rgba(0,200,83,.01))">'
         + '<div class="nb-card-ico" style="background:'+sm.color+'22;position:relative">'+(c.icon||sm.ico)
-        + '<span style="position:absolute;top:-4px;right:-4px;font-size:10px">⭐</span></div>'
+        + '<span style="position:absolute;top:-4px;right:-4px;font-size:10px">'+(c.homeClass==='yes'?'🏠':'⭐')+'</span></div>'
         + '<div class="nb-card-info">'
         + '<div class="nb-card-name">'+c.name+'</div>'
         + '<div class="nb-card-type" style="color:'+sm.color+'">'+(c.section||'').toUpperCase()+' &nbsp;·&nbsp; 👤 '+cName+'</div>'
-        +(tagsHtml?'<div class="nb-card-tags">'+tagsHtml+'</div>':'')
+        +(homeTag||tagsHtml?'<div class="nb-card-tags">'+homeTag+tagsHtml+'</div>':'')
         + '<div class="nb-card-meta">'
         + '<span class="nb-card-dist">📍 '+distStr+' &nbsp;·&nbsp; 🚶 ~'+walkMin+'min &nbsp;·&nbsp; 🚗 ~'+driveMin+'min</span>'
         +(p.addr?'<span class="nb-card-addr">'+p.addr+'</span>':'')+'</div>'
@@ -10024,6 +10739,7 @@ function _nbRenderCards(places) {
         + '<button class="nb-card-btn primary" onclick="event.stopPropagation();nbOpenUserCard(\''+c.id+'\')">👁 Card Dekho</button>'
         + '<button class="nb-card-btn" onclick="event.stopPropagation();nbFullRoadmap('+pLat+','+pLng+',\''+pname+'\')" style="background:rgba(0,176,255,.12);border-color:rgba(0,176,255,.4);color:#00B0FF">🗺️ Roadmap</button>'
         +(cPhone?'<button class="nb-card-btn" onclick="event.stopPropagation();window.location.href=\'tel:'+cPhone.replace(/\s/g,'')+'\'">📞 Call</button>':'')
+        +_nbCenterBtn(c)
         + '</div></div></div>';
     });
   }
@@ -10034,7 +10750,7 @@ function _nbRenderCards(places) {
     places.forEach(function(p, i) {
       var vm = 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name)+'@'+p.lat+','+p.lng;
       var callBtn = p.phone?'<button class="nb-card-btn" onclick="event.stopPropagation();window.location.href=\'tel:'+p.phone.replace(/\s/g,'')+'\'">📞 Call</button>':'';
-      var pname = p.name.replace(/'/g,"\\'");
+      var pname = p.name.split("'").join('');
       var distStr = p.dist<1000?Math.round(p.dist)+'m':(p.dist/1000).toFixed(1)+'km';
       var walkMin = Math.round(p.dist/80);
       var driveMin = Math.round(p.dist/600);
@@ -10101,14 +10817,14 @@ function nbOpenUserCard(cardId){
     } else if(card.section==='diet'){
       actionBtns='<button onclick="closeNbUserSheet();openModal(\'diet-form\')" style="flex:1;padding:10px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--g1),var(--g2));color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">🥗 Get Plan</button>';
     } else {
-      actionBtns='<button onclick="closeNbUserSheet();openModal(\'book\',\''+card.name.replace(/'/g,"\\'")+'\')" style="flex:1;padding:10px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--g1),var(--g2));color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">📅 Book Session</button>';
+      actionBtns='<button onclick="closeNbUserSheet();openModal(\'book\',\''+card.name.split("'").join('')+'\')" style="flex:1;padding:10px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--g1),var(--g2));color:#000;font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">📅 Book Session</button>';
     }
     if(cPhone) actionBtns+='<button onclick="window.location.href=\'tel:'+cPhone.replace(/\s/g,'')+'\'" style="padding:10px 14px;border-radius:50px;border:1.5px solid var(--g1);background:transparent;color:var(--g2);font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif">📞 Call</button>';
 
     /* Full Roadmap — distance tiles + all nav options */
     var navBtn='';
     if(card.lat&&card.lng){
-      var cname2 = card.name.replace(/'/g,"\\'");
+      var cname2 = card.name.split("'").join('');
       var gdir='https://www.google.com/maps/dir/?api=1&destination='+card.lat+','+card.lng;
       var waze2='https://waze.com/ul?ll='+card.lat+','+card.lng+'&navigate=yes';
       var walkMin2=0,driveMin2=0,bikeMin2=0,distStr2='';
@@ -10477,7 +11193,21 @@ function doAdminLogin(){
   var eb=document.getElementById('ad-export-btn');if(eb)eb.style.display='inline-block';
   var tb=document.getElementById('ad-tab-bar');if(tb)tb.style.display='flex';
   var sb=document.getElementById('ad-search-bar');if(sb)sb.style.display='block';
-  _adShowDash();
+  /* Firestore se fresh data load karo pehle — tab dashboard dikhao */
+  showToast('⏳ Latest data load ho raha hai...');
+  if(typeof DB !== 'undefined' && typeof DB.syncFromCloud === 'function'){
+    DB.syncFromCloud().then(function(){
+      window.allUsers = DB.load('users', {});
+      _adShowDash();
+      showToast('✅ Admin Panel ready!');
+    }).catch(function(){
+      window.allUsers = DB.load('users', {});
+      _adShowDash();
+    });
+  } else {
+    window.allUsers = DB.load('users', {});
+    _adShowDash();
+  }
 }
 function adLogout(){
   _adLoggedIn=false;
@@ -10502,6 +11232,7 @@ function _adShowDash(){
   _adRenderUsers();
   _adRenderBin();
   _adRenderContact();
+  _adRenderShop();
   _adRenderSettings();
   _adUpdateContactBadge();
 }
@@ -10523,6 +11254,7 @@ function adTab(tab,btn){
   else if(tab==='users')_adRenderUsers();
   else if(tab==='bin')_adRenderBin();
   else if(tab==='contact'){_adRenderContact();_adMarkContactRead();}
+  else if(tab==='shop'){_adRenderShop();}
   else if(tab==='settings'){_adRenderSettings();}
 }
 
@@ -10596,7 +11328,7 @@ function _adRenderStats(){
   var registry=DB.load('cardRegistry',[])||[];
   var bin=DB.load('cardBin',[])||[];
   var builtinBin=DB.load('builtinBin',[])||[];
-  var users=DB.load('users',{})||{};
+  var users=Object.assign({}, DB.load('users',{})||{}, window.allUsers||{});
   var uc=Object.keys(users).length;
   var bk=0;Object.values(users).forEach(function(u){bk+=(u.bookings||[]).length;});
   _adAssignBuiltinIds();
@@ -10784,7 +11516,8 @@ function _adRenderCards(){
   el.innerHTML=html;
 }
 function _adRenderUsers(){
-  var users=DB.load('users',{})||{};
+  /* window.allUsers latest hota hai — DB.load se merge karo */
+  var users = Object.assign({}, DB.load('users',{})||{}, window.allUsers||{});
   var el=document.getElementById('ad-users-content');if(!el)return;
   var keys=Object.keys(users);
   if(!keys.length){el.innerHTML='<div class="ad-empty"><span class="ad-empty-ico">👥</span>No registered members yet.</div>';return;}
@@ -10812,7 +11545,7 @@ function _adRenderUsers(){
       }
       any=true;
       var bks=u.bookings||[];
-      var safeEmail=email.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var safeEmail=email.replace(/\\/g,'\\\\').split("'").join('');
 
       /* Bookings accordion HTML */
       var bkHtml='';
@@ -10901,15 +11634,18 @@ function _adRenderBin(){
   var html='<div class="ad-section-lbl">🗑️ DELETED CARDS ('+total+')</div>'
     +'<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7">Restore a card to bring it back, or delete permanently.</div>';
   filteredBuiltin.forEach(function(c){
+    var autoTag=c.autoReplaced
+      ?'<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.25);color:var(--g2);font-size:9px;font-weight:800;margin-left:5px">🔄 Auto-Replaced</span>'
+      :'';
     html+='<div class="ad-bin-row" id="binbuiltin-'+c.bid+'">'
       +'<div class="ad-bin-ico">'+(c.icon||'📌')+'</div>'
       +'<div class="ad-card-info">'
-      +'<div class="ad-card-name">'+c.name+'</div>'
-      +'<div class="ad-card-meta">'+(icons[c.section]||'📌')+' '+c.section+(c.deletedOn?' · Deleted '+c.deletedOn:'')+'</div>'
-      +'<div class="ad-card-creator" style="color:var(--muted)">📌 Default content</div>'
+      +'<div class="ad-card-name">'+c.name+autoTag+'</div>'
+      +'<div class="ad-card-meta">'+(icons[c.section]||'📌')+' '+c.section+(c.deletedOn?' · Replaced '+c.deletedOn:'')+'</div>'
+      +'<div class="ad-card-creator" style="color:var(--muted)">📌 Built-in card — user ne replace kiya</div>'
       +'<div class="ad-card-actions">'
       +'<button class="ad-restore-btn" onclick="adRestoreBuiltin(\''+c.bid+'\')">♻️ Restore</button>'
-      +'<button class="ad-del-btn" onclick="adPermDeleteBuiltin(\''+c.bid+'\')">🗑️ Forever</button>'
+      +'<button class="ad-del-btn" onclick="adPermDeleteBuiltin(\''+c.bid+'\')">🗑️ Forever Delete</button>'
       +'</div></div></div>';
   });
   filteredBin.forEach(function(c){
@@ -11101,7 +11837,7 @@ function adEditUser(email){
   mc.innerHTML='<h3>✏️ Edit Member</h3>'
     +'<div style="background:rgba(244,67,54,.07);border:1px solid rgba(244,67,54,.2);border-radius:var(--rs);padding:9px 12px;font-size:11px;color:var(--red);margin-bottom:14px;font-weight:700">🛡️ Admin Edit — Changes apply immediately</div>'
     +'<div class="fg-row"><div class="fg"><label>Full Name</label><input id="aeu-name" value="'+(u.name||'')+'"></div>'
-    +'<div class="fg"><label>Phone</label><input id="aeu-phone" type="tel" value="'+(u.phone||'')+'"></div></div>'
+    +'<div class="fg"><label>📱 Phone</label><div class="cc-group" id="cc-group-aeu-phone"><div class="cc-wrap" data-for="aeu-phone"><select class="cc-sel" onchange="_ccChange(this)" aria-label="Country Code"><option value="+91" selected>🇮🇳 +91 (India)</option><option value="+1">🇺🇸 +1 (USA)</option><option value="+44">🇬🇧 +44 (UK)</option><option value="+971">🇦🇪 +971 (UAE)</option><option value="+966">🇸🇦 +966 (Saudi Arabia)</option></select><div class="cc-display">+91</div></div><input id="aeu-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" value="'+(u.phone||'')+'"></div></div></div>'
     +'<div class="fg"><label>Email (read-only)</label><input value="'+email+'" disabled style="opacity:.5"></div>'
     +'<div class="fg"><label>Address</label><input id="aeu-addr" value="'+(u.address||'')+'"></div>'
     +'<div class="fg"><label>Bio</label><textarea id="aeu-bio" style="min-height:50px">'+(u.bio||'')+'</textarea></div>'
@@ -11215,11 +11951,21 @@ function adSendBroadcast(){
     unread:true,
     fromAdmin:true
   };
-  /* Notifications mein add karo */
-  var notifs2=DB.load('notifs',[])||[];
-  notifs2.unshift(notif);
-  DB.save('notifs',notifs2);
-  /* Dot dikhao */
+  /* Broadcast: saare registered users ke notifs mein add karo */
+  var allU = DB.load('users',{})||{};
+  var userEmails = Object.keys(allU);
+  userEmails.forEach(function(em){
+    var key = 'notifs_' + em;
+    var uNotifs = DB.load(key,[])||[];
+    uNotifs.unshift(notif);
+    DB.save(key, uNotifs.slice(0,150));
+  });
+  /* Agar admin bhi logged in hai toh uski notifs bhi update karo */
+  if(currentUser && currentUser.email){
+    notifs = _loadUserNotifs();
+    renderNotifs();
+  }
+  /* Dot dikhao agar current user logged in hai */
   var dot=document.getElementById('notif-dot');if(dot)dot.classList.add('show');
   /* Firestore mein bhi broadcast store karo — ff_broadcasts collection */
   if(typeof window.FSDB !== 'undefined' && window.FSDB._db){
@@ -11464,17 +12210,24 @@ document.addEventListener('DOMContentLoaded',function(){
     sessionStorage.setItem('loc_banner_shown','1');
 
     var isLight = document.body.classList.contains('light-mode');
+    var isDesktop = window.innerWidth >= 600;
     var banner = document.createElement('div');
     banner.id = 'loc-perm-banner';
-    banner.style.cssText = [
-      'position:fixed','bottom:72px','left:12px','right:12px',
+    var _locStyles = [
+      'position:fixed',
+      isDesktop ? 'bottom:30px' : 'bottom:72px',
+      isDesktop ? 'left:50%' : 'left:12px',
+      isDesktop ? 'right:auto' : 'right:12px',
+      isDesktop ? 'transform:translateX(-50%)' : '',
+      isDesktop ? 'width:380px' : '',
       'z-index:99990','background:'+(isLight?'#fff':'#1a1a1a'),
       'border:1.5px solid rgba(0,200,83,.4)','border-radius:16px',
       'padding:14px 16px','box-shadow:0 8px 32px rgba(0,0,0,.5)',
       'display:flex','align-items:center','gap:12px',
       'animation:slideup .4s cubic-bezier(.4,0,.2,1)',
       'font-family:Poppins,sans-serif'
-    ].join(';');
+    ].filter(Boolean);
+    banner.style.cssText = _locStyles.join(';');
 
     banner.innerHTML =
       '<div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,rgba(0,200,83,.2),rgba(0,200,83,.08));border:1.5px solid rgba(0,200,83,.3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📍</div>'
@@ -11799,25 +12552,25 @@ function adConfirmClose(){
 
 var SHOP_PRODUCTS = {
   equipment: [
-    {id:'eq1',name:'Anti-Slip Yoga Mat',desc:'6mm TPE, eco-friendly. Perfect grip for all poses.',price:999,oldPrice:1249,img:'https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=300&h=200&fit=crop',badge:'20% OFF',badgeType:'off',cat:'yoga',rating:4.8,reviews:324,veg:false},
-    {id:'eq2',name:'Adjustable Dumbbells',desc:'5–30kg range. Space-saving home gym solution.',price:3499,oldPrice:4099,img:'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=300&h=200&fit=crop',badge:'15% OFF',badgeType:'off',cat:'strength',rating:4.9,reviews:512,veg:false},
-    {id:'eq3',name:'Resistance Bands Kit',desc:'5-band set, 5–40 lbs resistance. Full body workout.',price:649,oldPrice:null,img:'https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'strength',rating:4.7,reviews:198,veg:false},
-    {id:'eq4',name:'Smart Fitness Tracker',desc:'Heart rate, SpO2, sleep tracking. 10-day battery life.',price:2799,oldPrice:3099,img:'https://images.unsplash.com/photo-1575311373937-040b8e1fd1b0?w=300&h=200&fit=crop',badge:'10% OFF',badgeType:'off',cat:'cardio',rating:4.6,reviews:289,veg:false},
-    {id:'eq5',name:'Foam Roller Pro',desc:'Deep tissue massage. High density EVA foam.',price:799,oldPrice:null,img:'https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'recovery',rating:4.8,reviews:145,veg:false},
-    {id:'eq6',name:'Speed Jump Rope',desc:'Steel wire, ball-bearing handles. Professional grade.',price:449,oldPrice:599,img:'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=300&h=200&fit=crop',badge:'25% OFF',badgeType:'off',cat:'cardio',rating:4.5,reviews:421,veg:false},
-    {id:'eq7',name:'Gym Gloves + Wrist Wrap',desc:'Anti-slip grip, breathable mesh. Protects wrists.',price:549,oldPrice:null,img:'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'strength',rating:4.7,reviews:167,veg:false},
-    {id:'eq8',name:'Yoga Blocks Set (2pc)',desc:'High-density EVA. Supports all yoga poses and levels.',price:349,oldPrice:null,img:'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&h=200&fit=crop',badge:'New',badgeType:'new',cat:'yoga',rating:4.6,reviews:93,veg:false}
+    {id:'eq1',name:'Anti-Slip Yoga Mat',desc:'6mm TPE, eco-friendly. Perfect grip for all poses.',price:999,oldPrice:1249,img:'https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=600&h=400&fit=crop','https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop','https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&h=400&fit=crop'],badge:'20% OFF',badgeType:'off',cat:'yoga',rating:4.8,reviews:324,veg:false,stock:12,sizes:['4mm','6mm','8mm'],highlights:['Eco-friendly TPE material','Non-slip surface both sides','Alignment lines printed','Carrying strap included','Easy to clean'],deliveryDays:3,brand:'FitFine Pro',sku:'FFP-YM-001',returnDays:7},
+    {id:'eq2',name:'Adjustable Dumbbells',desc:'5–30kg range. Space-saving home gym solution.',price:3499,oldPrice:4099,img:'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop','https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop'],badge:'15% OFF',badgeType:'off',cat:'strength',rating:4.9,reviews:512,veg:false,stock:5,sizes:null,highlights:['15 weight settings in one','Space-saving design','Chrome steel construction','Non-slip handle grip','1-year warranty'],deliveryDays:5,brand:'PowerFlex',sku:'PF-DB-002',returnDays:7},
+    {id:'eq3',name:'Resistance Bands Kit',desc:'5-band set, 5–40 lbs resistance. Full body workout.',price:649,oldPrice:null,img:'https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'strength',rating:4.7,reviews:198,veg:false,stock:30,sizes:null,highlights:['5 resistance levels included','Natural latex material','Door anchor + handles + bag','Suitable for all fitness levels','Anti-snap safety'],deliveryDays:2,brand:'FitFine Pro',sku:'FFP-RB-003',returnDays:7},
+    {id:'eq4',name:'Smart Fitness Tracker',desc:'Heart rate, SpO2, sleep tracking. 10-day battery life.',price:2799,oldPrice:3099,img:'https://images.unsplash.com/photo-1575311373937-040b8e1fd1b0?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1575311373937-040b8e1fd1b0?w=600&h=400&fit=crop'],badge:'10% OFF',badgeType:'off',cat:'cardio',rating:4.6,reviews:289,veg:false,stock:8,sizes:['Small/Medium','Large/XL'],highlights:['24/7 heart rate monitoring','Blood oxygen (SpO2) sensor','10-day battery life','Water resistant IP68','100+ workout modes'],deliveryDays:3,brand:'TechFit',sku:'TF-FT-004',returnDays:7},
+    {id:'eq5',name:'Foam Roller Pro',desc:'Deep tissue massage. High density EVA foam.',price:799,oldPrice:null,img:'https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'recovery',rating:4.8,reviews:145,veg:false,stock:20,sizes:['Short 30cm','Long 60cm'],highlights:['High-density EVA foam','Grid texture for deep tissue','Hollow core lightweight design','15kg weight capacity','Includes exercise guide'],deliveryDays:2,brand:'RecoverX',sku:'RX-FR-005',returnDays:7},
+    {id:'eq6',name:'Speed Jump Rope',desc:'Steel wire, ball-bearing handles. Professional grade.',price:449,oldPrice:599,img:'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=600&h=400&fit=crop'],badge:'25% OFF',badgeType:'off',cat:'cardio',rating:4.5,reviews:421,veg:false,stock:50,sizes:null,highlights:['Ball-bearing handles for speed','Adjustable steel wire cable','Foam grip for comfort','Tangle-free design','Suitable for 4–6 feet height'],deliveryDays:2,brand:'SpeedX',sku:'SX-JR-006',returnDays:7},
+    {id:'eq7',name:'Gym Gloves + Wrist Wrap',desc:'Anti-slip grip, breathable mesh. Protects wrists.',price:549,oldPrice:null,img:'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'strength',rating:4.7,reviews:167,veg:false,stock:25,sizes:['S','M','L','XL'],highlights:['Anti-slip silicone grip','Breathable mesh back','Wrist wrap for support','Machine washable','Half-finger design for feel'],deliveryDays:2,brand:'GripPro',sku:'GP-GG-007',returnDays:7},
+    {id:'eq8',name:'Yoga Blocks Set (2pc)',desc:'High-density EVA. Supports all yoga poses and levels.',price:349,oldPrice:null,img:'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop'],badge:'New',badgeType:'new',cat:'yoga',rating:4.6,reviews:93,veg:false,stock:40,sizes:null,highlights:['High-density EVA foam','Non-slip surface','Lightweight 135g each','Set of 2 blocks','3 different positions supported'],deliveryDays:2,brand:'FitFine Pro',sku:'FFP-YB-008',returnDays:7}
   ],
   food: [
-    {id:'fd1',name:'Protein Power Salad',desc:'Paneer, chickpeas, quinoa. 35g protein per serving.',price:249,oldPrice:null,img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'meals',rating:4.8,reviews:203,veg:true},
-    {id:'fd2',name:'Green Detox Smoothie',desc:'Spinach, banana, ginger, chia seeds. Zero added sugar.',price:179,oldPrice:null,img:'https://images.unsplash.com/photo-1638176066620-03cb2a08a3d3?w=300&h=200&fit=crop',badge:'New',badgeType:'new',cat:'smoothie',rating:4.7,reviews:87,veg:true},
-    {id:'fd3',name:'Whey Protein Chocolate',desc:'1kg, 24g protein per serve. No artificial sweeteners.',price:1899,oldPrice:null,img:'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=300&h=200&fit=crop',badge:'Hot',badgeType:'hot',cat:'supplement',rating:4.9,reviews:672,veg:true},
-    {id:'fd4',name:'Omega-3 Fish Oil',desc:'120 capsules, 1000mg EPA+DHA per capsule.',price:599,oldPrice:null,img:'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'supplement',rating:4.6,reviews:134,veg:false},
-    {id:'fd5',name:'Mixed Nuts Trail Mix',desc:'Almonds, walnuts, cashews, seeds. 500g premium pack.',price:429,oldPrice:499,img:'https://images.unsplash.com/photo-1547424483-05fc5a8a5e3b?w=300&h=200&fit=crop',badge:'15% OFF',badgeType:'off',cat:'snack',rating:4.8,reviews:318,veg:true},
-    {id:'fd6',name:'Dark Choco Protein Bar',desc:'15g protein, 180 cal per bar. Pack of 6 bars.',price:349,oldPrice:null,img:'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'snack',rating:4.5,reviews:256,veg:true},
-    {id:'fd7',name:'Brown Rice + Quinoa Mix',desc:'1kg blend, low GI, high fiber. Perfect for weight management.',price:299,oldPrice:null,img:'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'meals',rating:4.7,reviews:189,veg:true},
-    {id:'fd8',name:'Daily Multivitamin',desc:'30 tablets. Complete formula with 23 vitamins & minerals.',price:449,oldPrice:null,img:'https://images.unsplash.com/photo-1559181567-c3190bfbf1f7?w=300&h=200&fit=crop',badge:null,badgeType:null,cat:'supplement',rating:4.6,reviews:301,veg:true},
-    {id:'fd9',name:'Daal Makhani Protein Bowl',desc:'High protein dal bowl. 28g protein. Healthy Indian meal.',price:199,oldPrice:249,img:'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=300&h=200&fit=crop',badge:'20% OFF',badgeType:'off',cat:'meals',rating:4.8,reviews:412,veg:true}
+    {id:'fd1',name:'Protein Power Salad',desc:'Paneer, chickpeas, quinoa. 35g protein per serving.',price:249,oldPrice:null,img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'meals',rating:4.8,reviews:203,veg:true,stock:15,sizes:['Regular 350g','Large 500g'],highlights:['35g protein per serving','Zero preservatives','Chef-prepared fresh daily','Delivered in eco packaging','Serves 1-2 people'],deliveryDays:1,brand:'FitMeals',sku:'FM-PS-101',returnDays:0},
+    {id:'fd2',name:'Green Detox Smoothie',desc:'Spinach, banana, ginger, chia seeds. Zero added sugar.',price:179,oldPrice:null,img:'https://images.unsplash.com/photo-1638176066620-03cb2a08a3d3?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1638176066620-03cb2a08a3d3?w=600&h=400&fit=crop'],badge:'New',badgeType:'new',cat:'smoothie',rating:4.7,reviews:87,veg:true,stock:20,sizes:['250ml','500ml'],highlights:['Zero added sugar','No artificial colors','Cold-pressed process','100% natural ingredients','Delivered chilled'],deliveryDays:1,brand:'PureBlend',sku:'PB-GS-102',returnDays:0},
+    {id:'fd3',name:'Whey Protein Chocolate',desc:'1kg, 24g protein per serve. No artificial sweeteners.',price:1899,oldPrice:null,img:'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=600&h=400&fit=crop'],badge:'Hot',badgeType:'hot',cat:'supplement',rating:4.9,reviews:672,veg:true,stock:30,sizes:['500g','1kg','2kg'],highlights:['24g protein per 30g serving','FSSAI certified','No artificial sweeteners','Informed Sport tested','33 servings per 1kg'],deliveryDays:2,brand:'MuscleX',sku:'MX-WP-103',returnDays:7},
+    {id:'fd4',name:'Omega-3 Fish Oil',desc:'120 capsules, 1000mg EPA+DHA per capsule.',price:599,oldPrice:null,img:'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'supplement',rating:4.6,reviews:134,veg:false,stock:45,sizes:['60 caps','120 caps'],highlights:['1000mg EPA+DHA per capsule','No fishy aftertaste','Enteric coated capsules','IFOS certified quality','120 capsules supply = 4 months'],deliveryDays:2,brand:'NutriCare',sku:'NC-O3-104',returnDays:7},
+    {id:'fd5',name:'Mixed Nuts Trail Mix',desc:'Almonds, walnuts, cashews, seeds. 500g premium pack.',price:429,oldPrice:499,img:'https://images.unsplash.com/photo-1547424483-05fc5a8a5e3b?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1547424483-05fc5a8a5e3b?w=600&h=400&fit=crop'],badge:'15% OFF',badgeType:'off',cat:'snack',rating:4.8,reviews:318,veg:true,stock:60,sizes:['250g','500g','1kg'],highlights:['Unsalted, no added oils','California almonds + walnuts','Rich in Omega-3 & Vitamin E','Resealable zipper pouch','Shelf life 6 months'],deliveryDays:2,brand:'NutriMix',sku:'NM-TM-105',returnDays:7},
+    {id:'fd6',name:'Dark Choco Protein Bar',desc:'15g protein, 180 cal per bar. Pack of 6 bars.',price:349,oldPrice:null,img:'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'snack',rating:4.5,reviews:256,veg:true,stock:35,sizes:null,highlights:['15g protein per bar','Only 180 calories','No added sugar','70% dark chocolate coating','Pack of 6 (58g each)'],deliveryDays:2,brand:'ProteinX',sku:'PX-PB-106',returnDays:7},
+    {id:'fd7',name:'Brown Rice + Quinoa Mix',desc:'1kg blend, low GI, high fiber. Perfect for weight management.',price:299,oldPrice:null,img:'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'meals',rating:4.7,reviews:189,veg:true,stock:25,sizes:['500g','1kg','2kg'],highlights:['Low glycemic index blend','High fiber content','Complete amino acid profile','No added preservatives','Cooks in 15 minutes'],deliveryDays:2,brand:'WholeGrain',sku:'WG-RQ-107',returnDays:7},
+    {id:'fd8',name:'Daily Multivitamin',desc:'30 tablets. Complete formula with 23 vitamins & minerals.',price:449,oldPrice:null,img:'https://images.unsplash.com/photo-1559181567-c3190bfbf1f7?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1559181567-c3190bfbf1f7?w=600&h=400&fit=crop'],badge:null,badgeType:null,cat:'supplement',rating:4.6,reviews:301,veg:true,stock:50,sizes:['30 tabs','60 tabs','90 tabs'],highlights:['23 vitamins & minerals','FSSAI certified','No artificial colors','Vegetarian capsules','Once daily formula'],deliveryDays:2,brand:'VitaBoost',sku:'VB-MV-108',returnDays:7},
+    {id:'fd9',name:'Daal Makhani Protein Bowl',desc:'High protein dal bowl. 28g protein. Healthy Indian meal.',price:199,oldPrice:249,img:'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&h=400&fit=crop',imgs:['https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&h=400&fit=crop'],badge:'20% OFF',badgeType:'off',cat:'meals',rating:4.8,reviews:412,veg:true,stock:10,sizes:['Regular 300g','Large 500g'],highlights:['28g protein per serving','Traditional slow-cooked recipe','No artificial flavors','Low in saturated fat','Ready in 3 minutes (microwave)'],deliveryDays:1,brand:'FitMeals',sku:'FM-DM-109',returnDays:0}
   ]
 };
 
@@ -11881,6 +12634,349 @@ function _shopRenderAll(){
   _shopUpdateCount();
 }
 
+/* ══════════════════════════════════════════════════════════
+   PRODUCT DETAIL PAGE — Full e-commerce product view
+══════════════════════════════════════════════════════════ */
+var _pdpCurrentImg = 0;
+var _pdpProd = null;
+var _pdpQty = 1;
+var _pdpSize = null;
+var _recentlyViewed = JSON.parse(localStorage.getItem('ff_recently_viewed')||'[]');
+var _productReviews = JSON.parse(localStorage.getItem('ff_product_reviews')||'{}');
+
+/* Sample preset reviews */
+var _PRESET_REVIEWS = {
+  eq1:[{name:'Priya S.',rating:5,text:'Excellent mat! Non-slip quality is top notch.',date:'12/04/2025',helpful:23},{name:'Rahul M.',rating:4,text:'Good quality, slightly thin for my liking but great grip.',date:'08/03/2025',helpful:15}],
+  eq2:[{name:'Arjun K.',rating:5,text:'Best dumbbells I\'ve ever used. Worth every rupee!',date:'15/04/2025',helpful:41}],
+  fd3:[{name:'Vikash T.',rating:5,text:'Amazing taste! Mixes well. No chalky aftertaste.',date:'10/04/2025',helpful:67},{name:'Sneha P.',rating:5,text:'Best whey in this price range. Will repurchase!',date:'02/04/2025',helpful:34}],
+};
+
+function openProductDetail(pid){
+  var allProds = SHOP_PRODUCTS.equipment.concat(SHOP_PRODUCTS.food);
+  var prod = allProds.find(function(p){return p.id===pid;});
+  if(!prod){showToast('❌ Product not found!');return;}
+  _pdpProd = prod;
+  _pdpQty = 1;
+  _pdpSize = prod.sizes ? prod.sizes[0] : null;
+  _pdpCurrentImg = 0;
+
+  /* Log to recently viewed */
+  _recentlyViewed = _recentlyViewed.filter(function(id){return id!==pid;});
+  _recentlyViewed.unshift(pid);
+  if(_recentlyViewed.length > 10) _recentlyViewed = _recentlyViewed.slice(0,10);
+  try{localStorage.setItem('ff_recently_viewed', JSON.stringify(_recentlyViewed));}catch(e){}
+
+  /* Build page */
+  var pg = document.getElementById('pdp-page');
+  if(!pg){ _buildPdpPage(); pg = document.getElementById('pdp-page'); }
+  _renderPdp(prod);
+  pg.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function _buildPdpPage(){
+  var div = document.createElement('div');
+  div.id = 'pdp-page';
+  div.innerHTML = '<div id="pdp-topbar"><button onclick="closePdp()">←</button><div id="pdp-title" style="flex:1;font-size:14px;font-weight:700;font-family:Poppins,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div><button onclick="pdpShare()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:6px">📤</button><button id="pdp-wl-btn" onclick="pdpToggleWL()" style="background:none;border:none;font-size:22px;cursor:pointer;padding:6px">♡</button></div>'
+    +'<div id="pdp-body"></div>'
+    +'<div id="pdp-footer"><div id="pdp-footer-price"></div><div style="display:flex;gap:8px"><button id="pdp-wl-f" onclick="pdpToggleWL()" style="width:44px;height:44px;border-radius:50%;border:1.5px solid var(--border);background:var(--card2);font-size:20px;cursor:pointer;flex-shrink:0">♡</button><button id="pdp-cart-btn" onclick="pdpAddToCart()" style="flex:1;padding:13px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--g1),var(--g2));color:#000;font-size:14px;font-weight:800;cursor:pointer;font-family:Poppins,sans-serif">🛒 Add to Cart</button><button id="pdp-buy-btn" onclick="pdpBuyNow()" style="flex:1;padding:13px;border-radius:50px;border:none;background:linear-gradient(135deg,#FF6D00,#ff9800);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:Poppins,sans-serif">⚡ Buy Now</button></div></div>';
+  document.body.appendChild(div);
+
+  var st = document.createElement('style');
+  st.textContent = '#pdp-page{position:fixed;inset:0;z-index:2000;background:var(--dark);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)}#pdp-page.open{transform:translateX(0)}#pdp-topbar{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--dark)}#pdp-topbar>button:first-child{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}#pdp-body{flex:1;overflow-y:auto;padding-bottom:110px}#pdp-body::-webkit-scrollbar{width:3px}#pdp-footer{position:absolute;bottom:0;left:0;right:0;padding:12px 14px 20px;background:var(--dark);border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}#pdp-footer-price{flex-shrink:0}.pdp-img-main{width:100%;height:280px;object-fit:cover;display:block}.pdp-img-thumb{width:60px;height:60px;object-fit:cover;border-radius:10px;border:2.5px solid var(--border);cursor:pointer;flex-shrink:0;transition:border-color .2s}.pdp-img-thumb.act{border-color:var(--g1)}.pdp-star{color:#FFD600;font-size:14px}.pdp-size-btn{padding:8px 16px;border-radius:8px;border:1.5px solid var(--border);background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif;transition:all .18s}.pdp-size-btn.act{border-color:var(--g1);background:rgba(0,200,83,.1);color:var(--g2)}.pdp-qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--card2);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700}.pdp-section{padding:16px 14px;border-bottom:1px solid var(--border)}.pdp-section-title{font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px}.pdp-review-card{background:var(--card2);border-radius:12px;padding:12px;margin-bottom:10px}.pdp-pin-inp{flex:1;padding:10px 12px;border-radius:9px;background:var(--dark);border:1px solid var(--border);color:var(--text);font-size:13px;outline:none;font-family:Poppins,sans-serif}.pdp-pin-inp:focus{border-color:var(--g1)}.pdp-highlight{display:flex;align-items:center;gap:10px;font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)}.pdp-highlight:last-child{border-bottom:none}.rv-card{display:flex;gap:10px;padding:10px;background:var(--card2);border-radius:12px;cursor:pointer;flex-shrink:0;width:140px;border:1px solid var(--border);transition:all .2s}.rv-card:hover{border-color:var(--g1)}';
+  document.head.appendChild(st);
+}
+
+function _renderPdp(p){
+  var pg = document.getElementById('pdp-page');
+  var titleEl = document.getElementById('pdp-title');
+  if(titleEl) titleEl.textContent = p.name;
+
+  /* Wishlist state */
+  var wled = _shopWishlist[p.id];
+  var wlBtns = [document.getElementById('pdp-wl-btn'), document.getElementById('pdp-wl-f')];
+  wlBtns.forEach(function(b){if(b){b.textContent=wled?'❤️':'♡';b.style.color=wled?'#ff5c8a':'var(--muted)';}});
+
+  /* Footer price */
+  var fpEl = document.getElementById('pdp-footer-price');
+  if(fpEl) fpEl.innerHTML = '<div style="font-family:Nunito,sans-serif;font-size:18px;font-weight:900;color:var(--text)">₹'+p.price+'</div>'+(p.oldPrice?'<div style="font-size:11px;color:var(--muted);text-decoration:line-through">₹'+p.oldPrice+'</div>':'');
+
+  /* Stock + cart state */
+  var inCart = _cartData[p.name] && _cartData[p.name].qty > 0;
+  var cartBtn = document.getElementById('pdp-cart-btn');
+  if(cartBtn){ cartBtn.textContent = inCart ? '✓ In Cart' : '🛒 Add to Cart'; cartBtn.style.background = inCart ? 'rgba(0,200,83,.2)' : ''; cartBtn.style.border = inCart ? '1.5px solid var(--g1)' : ''; cartBtn.style.color = inCart ? 'var(--g2)' : '#000'; }
+
+  /* Reviews */
+  var reviews = (_productReviews[p.id]||[]).concat(_PRESET_REVIEWS[p.id]||[]);
+  var avgRating = reviews.length ? (reviews.reduce(function(s,r){return s+r.rating;},0)/reviews.length).toFixed(1) : p.rating;
+  var totalReviews = reviews.length || p.reviews;
+  var stars = function(r){ return '★'.repeat(Math.floor(r))+'☆'.repeat(5-Math.floor(r)); };
+
+  /* Rating breakdown */
+  var ratingBreakdown = [5,4,3,2,1].map(function(n){
+    var cnt = reviews.filter(function(r){return Math.floor(r.rating)===n;}).length || Math.round(p.reviews*(n===5?0.6:n===4?0.25:n===3?0.1:0.03));
+    var pct = Math.round(cnt/Math.max(totalReviews,1)*100);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:10px;min-width:8px">'+n+'</span><div style="flex:1;height:6px;border-radius:3px;background:var(--card2);overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--g1);border-radius:3px"></div></div><span style="font-size:10px;color:var(--muted);min-width:28px">'+pct+'%</span></div>';
+  }).join('');
+
+  /* Recently viewed (others) */
+  var rvHtml = '';
+  var rvProds = _recentlyViewed.filter(function(id){return id!==p.id;}).slice(0,5).map(function(id){
+    return SHOP_PRODUCTS.equipment.concat(SHOP_PRODUCTS.food).find(function(pr){return pr.id===id;});
+  }).filter(Boolean);
+  if(rvProds.length){
+    rvHtml = '<div class="pdp-section">'
+      +'<div class="pdp-section-title">👁️ Recently Viewed</div>'
+      +'<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none">'
+      +rvProds.map(function(rp){
+        return '<div class="rv-card" onclick="openProductDetail(\''+rp.id+'\')">'
+          +'<img src="'+rp.img+'" style="width:48px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+          +'<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+rp.name+'</div><div style="font-size:11px;color:var(--g2);font-weight:800;margin-top:4px">₹'+rp.price+'</div></div>'
+          +'</div>';
+      }).join('')
+      +'</div>'
+      +'</div>';
+  }
+
+  /* Related products */
+  var relatedProds = SHOP_PRODUCTS.equipment.concat(SHOP_PRODUCTS.food).filter(function(rp){return rp.id!==p.id&&rp.cat===p.cat;}).slice(0,4);
+  var relHtml = relatedProds.length ? '<div class="pdp-section">'
+    +'<div class="pdp-section-title">🛍️ Similar Products</div>'
+    +'<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none">'
+    +relatedProds.map(function(rp){
+      return '<div onclick="openProductDetail(\''+rp.id+'\')" style="flex-shrink:0;width:140px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--g1)\'" onmouseout="this.style.borderColor=\'var(--border)\'">'
+        +'<img src="'+rp.img+'" style="width:100%;height:90px;object-fit:cover">'
+        +'<div style="padding:8px"><div style="font-size:11px;font-weight:700;margin-bottom:4px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+rp.name+'</div><div style="font-size:12px;font-weight:900;color:var(--g2)">₹'+rp.price+'</div></div>'
+        +'</div>';
+    }).join('')
+    +'</div></div>' : '';
+
+  var body = document.getElementById('pdp-body');
+  body.innerHTML = ''
+    /* Image gallery */
+    +'<div style="position:relative;background:#000">'
+    +'<img id="pdp-main-img" class="pdp-img-main" src="'+p.img+'" alt="'+p.name+'">'
+    +(p.badge?'<div style="position:absolute;top:14px;left:14px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:800;background:'+(p.badgeType==='off'?'var(--orange)':p.badgeType==='new'?'var(--blue)':'#E91E63')+';color:#fff">'+p.badge+'</div>':'')
+    +(p.veg?'<div style="position:absolute;top:14px;right:14px;width:22px;height:22px;border:2.5px solid #00C853;border-radius:4px;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:#00C853"></div></div>':'')
+    +(p.stock<=5&&p.stock>0?'<div style="position:absolute;bottom:10px;left:14px;padding:4px 10px;border-radius:20px;background:rgba(244,67,54,.85);color:#fff;font-size:10px;font-weight:800">⚠️ Only '+p.stock+' left!</div>':'')
+    +(p.stock===0?'<div style="position:absolute;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff">Out of Stock</div>':'')
+    +'</div>'
+    /* Image thumbnails */
+    +(p.imgs&&p.imgs.length>1?'<div style="display:flex;gap:8px;padding:12px 14px;overflow-x:auto;scrollbar-width:none">'+p.imgs.map(function(src,i){return '<img class="pdp-img-thumb'+(i===0?' act':'')+'" src="'+src+'" onclick="pdpSwitchImg(this,\''+src+'\')" alt="">';}).join('')+'</div>':'')
+    /* Basic info */
+    +'<div class="pdp-section">'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+p.brand+' · SKU: '+p.sku+'</div>'
+    +'<div style="font-family:Nunito,sans-serif;font-size:20px;font-weight:900;line-height:1.3;margin-bottom:8px">'+p.name+'</div>'
+    /* Price row */
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    +'<div style="font-family:Nunito,sans-serif;font-size:24px;font-weight:900;color:var(--text)">₹'+p.price+'</div>'
+    +(p.oldPrice?'<div style="font-size:14px;color:var(--muted);text-decoration:line-through">₹'+p.oldPrice+'</div><div style="padding:3px 8px;border-radius:6px;background:rgba(255,109,0,.15);color:var(--orange);font-size:11px;font-weight:800">'+Math.round((1-p.price/p.oldPrice)*100)+'% OFF</div>':'')
+    +'</div>'
+    /* Rating row */
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +'<div style="display:flex;align-items:center;gap:4px;background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.2);border-radius:6px;padding:4px 8px">'
+    +'<span style="color:#FFD600;font-size:13px">★</span><span style="font-size:13px;font-weight:800;color:var(--g2)">'+avgRating+'</span>'
+    +'</div>'
+    +'<span style="font-size:12px;color:var(--muted)">'+totalReviews+' ratings</span>'
+    +(p.stock>5?'<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--g2)">✅ In Stock</span>':p.stock>0?'<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--orange)">⚠️ Only '+p.stock+' left</span>':'<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--red)">❌ Out of Stock</span>')
+    +'</div>'
+    /* Description */
+    +'<div style="font-size:13px;color:var(--muted);line-height:1.7">'+p.desc+'</div>'
+    +'</div>'
+    /* Sizes */
+    +(p.sizes?'<div class="pdp-section"><div class="pdp-section-title">📐 Select Size / Variant</div><div style="display:flex;gap:8px;flex-wrap:wrap" id="pdp-sizes">'+p.sizes.map(function(s,i){return '<button class="pdp-size-btn'+(i===0?' act':'')+'" onclick="pdpSelectSize(this,\''+s+'\')">'+s+'</button>';}).join('')+'</div></div>':'')
+    /* Quantity */
+    +'<div class="pdp-section"><div class="pdp-section-title">🔢 Quantity</div>'
+    +'<div style="display:flex;align-items:center;gap:14px">'
+    +'<button class="pdp-qty-btn" onclick="pdpQty(-1)">−</button>'
+    +'<span id="pdp-qty-disp" style="font-family:Nunito,sans-serif;font-size:22px;font-weight:900;min-width:30px;text-align:center">1</span>'
+    +'<button class="pdp-qty-btn" onclick="pdpQty(1)">+</button>'
+    +'<div style="font-size:11px;color:var(--muted)">Total: <strong style="color:var(--text)" id="pdp-qty-total">₹'+p.price+'</strong></div>'
+    +'</div>'
+    +'</div>'
+    /* Delivery info */
+    +'<div class="pdp-section"><div class="pdp-section-title">🚚 Delivery</div>'
+    +'<div style="background:var(--card2);border-radius:12px;padding:12px;margin-bottom:12px">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    +'<span style="font-size:20px">📦</span>'
+    +'<div><div style="font-size:13px;font-weight:700">Estimated Delivery</div><div style="font-size:12px;color:var(--g2);font-weight:700">'+p.deliveryDays+'-'+(p.deliveryDays+2)+' business days</div></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<input id="pdp-pin-inp" class="pdp-pin-inp" placeholder="Enter pincode to check delivery" maxlength="6" type="tel" onkeydown="if(event.key===\'Enter\')checkPincode()">'
+    +'<button onclick="checkPincode()" style="padding:10px 14px;border-radius:9px;border:1.5px solid var(--g1);background:rgba(0,200,83,.1);color:var(--g2);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Poppins,sans-serif">Check</button>'
+    +'</div>'
+    +'<div id="pdp-pin-result" style="margin-top:8px;font-size:12px"></div>'
+    +'</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);background:var(--card2);padding:6px 10px;border-radius:20px">🆓 Free delivery above ₹999</div>'
+    +(p.returnDays?'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);background:var(--card2);padding:6px 10px;border-radius:20px">↩️ '+p.returnDays+'-day returns</div>':'')
+    +'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);background:var(--card2);padding:6px 10px;border-radius:20px">🔒 Secure payment</div>'
+    +'</div>'
+    +'</div>'
+    /* Highlights */
+    +(p.highlights?'<div class="pdp-section"><div class="pdp-section-title">✨ Product Highlights</div>'
+    +p.highlights.map(function(h){return '<div class="pdp-highlight"><span style="color:var(--g2);font-size:14px">✓</span><span>'+h+'</span></div>';}).join('')
+    +'</div>':'')
+    /* Rating breakdown */
+    +'<div class="pdp-section">'
+    +'<div class="pdp-section-title">⭐ Ratings & Reviews</div>'
+    +'<div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:14px">'
+    +'<div style="text-align:center;flex-shrink:0"><div style="font-family:Nunito,sans-serif;font-size:42px;font-weight:900;color:var(--text);line-height:1">'+avgRating+'</div><div style="color:#FFD600;font-size:14px;margin:4px 0">'+stars(Math.round(avgRating))+'</div><div style="font-size:11px;color:var(--muted)">'+totalReviews+' reviews</div></div>'
+    +'<div style="flex:1">'+ratingBreakdown+'</div>'
+    +'</div>'
+    /* Write review */
+    +'<div style="background:var(--card2);border-radius:12px;padding:14px;margin-bottom:14px">'
+    +'<div style="font-size:13px;font-weight:700;margin-bottom:10px">✍️ Write a Review</div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:10px" id="pdp-star-sel">'
+    +[1,2,3,4,5].map(function(n){return '<button onclick="pdpSelectStar(this,'+n+')" data-star="'+n+'" style="font-size:22px;background:none;border:none;cursor:pointer;opacity:.4;transition:opacity .15s">★</button>';}).join('')
+    +'</div>'
+    +'<textarea id="pdp-rev-text" placeholder="Apna experience share karein..." style="width:100%;min-height:70px;padding:10px;border-radius:9px;background:var(--dark);border:1px solid var(--border);color:var(--text);font-size:12px;font-family:Poppins,sans-serif;outline:none;resize:none;box-sizing:border-box" onfocus="this.style.borderColor=\'var(--g1)\'" onblur="this.style.borderColor=\'var(--border)\'"></textarea>'
+    +'<button onclick="pdpSubmitReview(\''+p.id+'\')" style="margin-top:8px;width:100%;padding:10px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--g1),var(--g2));color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:Poppins,sans-serif">Submit Review</button>'
+    +'</div>'
+    /* Existing reviews */
+    +(reviews.length?reviews.slice(0,3).map(function(r){
+      return '<div class="pdp-review-card">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        +'<div style="width:32px;height:32px;border-radius:50%;background:hsl('+Math.round(r.name.charCodeAt(0)*137%360)+',55%,45%);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;flex-shrink:0">'+r.name[0]+'</div>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:700">'+r.name+'</div><div style="font-size:10px;color:var(--muted)">'+r.date+'</div></div>'
+        +'<div style="background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.2);border-radius:6px;padding:3px 7px;font-size:11px;font-weight:800;color:var(--g2)">★ '+r.rating+'</div>'
+        +'</div>'
+        +'<div style="font-size:12px;color:var(--muted);line-height:1.6">'+r.text+'</div>'
+        +(r.helpful?'<div style="font-size:10px;color:var(--muted);margin-top:8px">👍 '+r.helpful+' found helpful</div>':'')
+        +'</div>';
+    }).join(''):'<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">Pehla review likhein! 😊</div>')
+    +'</div>'
+    /* Related + Recently Viewed */
+    +relHtml
+    +rvHtml
+    /* Trust badges */
+    +'<div style="padding:16px 14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
+    +'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">🔒 Secure Payment</div>'
+    +'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">✅ Genuine Products</div>'
+    +'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">🚚 Fast Delivery</div>'
+    +(p.returnDays?'<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">↩️ '+p.returnDays+'-Day Returns</div>':'')
+    +'</div>';
+}
+
+function closePdp(){
+  var pg = document.getElementById('pdp-page');
+  if(pg){ pg.classList.remove('open'); document.body.style.overflow=''; }
+}
+
+function pdpSwitchImg(el, src){
+  document.querySelectorAll('.pdp-img-thumb').forEach(function(t){t.classList.remove('act');});
+  el.classList.add('act');
+  var main = document.getElementById('pdp-main-img');
+  if(main) main.src=src;
+}
+
+function pdpSelectSize(el, size){
+  _pdpSize = size;
+  document.querySelectorAll('#pdp-sizes .pdp-size-btn').forEach(function(b){b.classList.remove('act');});
+  el.classList.add('act');
+}
+
+function pdpQty(delta){
+  _pdpQty = Math.max(1, Math.min(10, _pdpQty + delta));
+  var disp = document.getElementById('pdp-qty-disp');
+  var total = document.getElementById('pdp-qty-total');
+  if(disp) disp.textContent = _pdpQty;
+  if(total && _pdpProd) total.textContent = '₹'+(_pdpQty * _pdpProd.price);
+}
+
+function pdpSelectStar(el, n){
+  _pdpStarRating = n;
+  document.querySelectorAll('#pdp-star-sel button').forEach(function(b,i){
+    b.style.opacity = i < n ? '1' : '.3';
+  });
+}
+var _pdpStarRating = 0;
+
+function pdpSubmitReview(pid){
+  if(!currentUser){showToast('❌ Review ke liye login karein!');return;}
+  if(!_pdpStarRating){showToast('❌ Please select a star rating!');return;}
+  var text = (document.getElementById('pdp-rev-text')||{}).value||'';
+  if(!text.trim()||text.trim().length<10){showToast('❌ Review minimum 10 characters likhein!');return;}
+  var review = {name:currentUser.name,rating:_pdpStarRating,text:text.trim(),date:new Date().toLocaleDateString('en-IN'),helpful:0};
+  if(!_productReviews[pid]) _productReviews[pid]=[];
+  _productReviews[pid].unshift(review);
+  try{localStorage.setItem('ff_product_reviews',JSON.stringify(_productReviews));}catch(e){}
+  _pdpStarRating=0;
+  showToast('🎉 Review submitted! Shukriya!');
+  _renderPdp(_pdpProd);
+}
+
+function checkPincode(){
+  var pin = (document.getElementById('pdp-pin-inp')||{}).value||'';
+  var res = document.getElementById('pdp-pin-result');
+  if(!pin||pin.length!==6){showToast('❌ Valid 6-digit pincode daalo!');return;}
+  if(!res) return;
+  res.innerHTML = '<div style="color:var(--muted)">⏳ Checking...</div>';
+  setTimeout(function(){
+    var deliverable = !(pin.startsWith('0')||pin.startsWith('9'));
+    if(deliverable){
+      var days = _pdpProd ? _pdpProd.deliveryDays : 3;
+      var d = new Date(); d.setDate(d.getDate()+days);
+      var dateStr = d.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'});
+      res.innerHTML = '<div style="color:var(--g2);font-weight:700">✅ Delivery available to '+pin+'<br><span style="color:var(--muted);font-weight:400">Expected by '+dateStr+'</span></div>';
+    } else {
+      res.innerHTML = '<div style="color:var(--red);font-weight:700">❌ Delivery not available to this pincode.<br><span style="color:var(--muted);font-weight:400">Try nearby pincode.</span></div>';
+    }
+  }, 800);
+}
+
+function pdpToggleWL(){
+  if(!_pdpProd) return;
+  _shopWishlist[_pdpProd.id] = !_shopWishlist[_pdpProd.id];
+  var wled = _shopWishlist[_pdpProd.id];
+  var wlBtns = [document.getElementById('pdp-wl-btn'), document.getElementById('pdp-wl-f')];
+  wlBtns.forEach(function(b){if(b){b.textContent=wled?'❤️':'♡';b.style.color=wled?'#ff5c8a':'var(--muted)';}});
+  showToast(wled?'❤️ '+_pdpProd.name+' wishlist mein add hua!':'🤍 Wishlist se remove kiya!');
+  /* Sync wl count */
+  var wc = Object.values(_shopWishlist).filter(Boolean).length;
+  var wlN = document.getElementById('wl-n'); if(wlN) wlN.textContent=wc;
+  var tWlN = document.getElementById('t-wl-n'); if(tWlN) tWlN.textContent=wc;
+  var wlSn = document.getElementById('wl-sn-n'); if(wlSn) wlSn.textContent=wc;
+}
+
+function pdpAddToCart(){
+  if(!_pdpProd) return;
+  if(_pdpProd.stock === 0){showToast('❌ Product out of stock!');return;}
+  for(var i=0;i<_pdpQty;i++){ cartItems.push(_pdpProd.name); }
+  cartCount = cartItems.length;
+  if(_cartData[_pdpProd.name]){ _cartData[_pdpProd.name].qty += _pdpQty; }
+  else { _cartData[_pdpProd.name]={qty:_pdpQty,price:_pdpProd.price,emoji:PRODUCT_EMOJI[_pdpProd.name]||'🛍️'}; }
+  PRODUCT_PRICES[_pdpProd.name] = _pdpProd.price;
+  /* Update badges */
+  document.getElementById('fabn').textContent = cartCount;
+  var tb=document.getElementById('t-fabn');if(tb)tb.textContent=cartCount;
+  var scN=document.getElementById('shop-cart-n');if(scN)scN.textContent=cartCount;
+  /* Update button */
+  var cartBtn = document.getElementById('pdp-cart-btn');
+  if(cartBtn){ cartBtn.textContent='✓ In Cart ('+_cartData[_pdpProd.name].qty+')'; cartBtn.style.background='rgba(0,200,83,.15)'; cartBtn.style.border='1.5px solid var(--g1)'; cartBtn.style.color='var(--g2)'; }
+  showToast('✅ '+_pdpQty+'x '+_pdpProd.name+' cart mein add hua!');
+  try{RA.log('cart','Added to Cart: '+_pdpProd.name,'','');} catch(e){}
+}
+
+function pdpBuyNow(){
+  if(!_pdpProd) return;
+  if(_pdpProd.stock === 0){showToast('❌ Product out of stock!');return;}
+  pdpAddToCart();
+  closePdp();
+  setTimeout(function(){ openCheckout('address'); }, 300);
+}
+
+function pdpShare(){
+  if(!_pdpProd) return;
+  var text = 'Dekho yeh product: '+_pdpProd.name+' sirf ₹'+_pdpProd.price+' mein! 💪\nFit & Fine Store pe milega.';
+  if(navigator.share){
+    navigator.share({title:_pdpProd.name,text:text}).catch(function(){});
+  } else {
+    navigator.clipboard && navigator.clipboard.writeText(text).then(function(){showToast('📋 Product info copied!');});
+  }
+}
+
+/* ── Upgrade shop card to open detail on click ── */
 function _shopRenderGrid(gridId, products, chipFilter){
   var grid = document.getElementById(gridId);
   if(!grid) return;
@@ -11891,19 +12987,21 @@ function _shopRenderGrid(gridId, products, chipFilter){
     return;
   }
   grid.innerHTML = filtered.map(function(p){
-    var stars = '★'.repeat(Math.floor(p.rating)) + (p.rating%1>=0.5?'½':'');
+    var stars = Math.round(p.rating);
+    var starStr = '★'.repeat(stars)+'☆'.repeat(5-stars);
     var badgeHtml = p.badge ? '<div class="shop-card-badge shop-card-badge-'+p.badgeType+'">'+p.badge+'</div>' : '';
     var vegHtml = p.veg ? '<div class="shop-card-veg"></div>' : '';
     var oldPHtml = p.oldPrice ? '<span class="shop-card-oldp">₹'+p.oldPrice+'</span>' : '';
     var wled = _shopWishlist[p.id] ? ' wled' : '';
-    return '<div class="shop-card" data-pid="'+p.id+'" data-cat="'+p.cat+'" data-price="'+p.price+'" data-discount="'+(p.oldPrice?Math.round((1-p.price/p.oldPrice)*100):0)+'">'
+    var stockBadge = p.stock===0 ? '<div style="position:absolute;bottom:8px;left:8px;padding:3px 8px;border-radius:20px;background:rgba(0,0,0,.7);color:#ff5c8a;font-size:9px;font-weight:800">Out of Stock</div>' : (p.stock<=5?'<div style="position:absolute;bottom:8px;left:8px;padding:3px 8px;border-radius:20px;background:rgba(244,67,54,.8);color:#fff;font-size:9px;font-weight:800">Only '+p.stock+' left</div>':'');
+    return '<div class="shop-card" data-pid="'+p.id+'" data-cat="'+p.cat+'" data-price="'+p.price+'" data-discount="'+(p.oldPrice?Math.round((1-p.price/p.oldPrice)*100):0)+'" onclick="openProductDetail(\''+p.id+'\')">'
       +'<div class="shop-card-img">'
       +'<img src="'+p.img+'" alt="'+p.name+'" loading="lazy">'
-      +badgeHtml+vegHtml
+      +badgeHtml+vegHtml+stockBadge
       +'<button class="shop-card-wl'+wled+'" onclick="shopToggleWL(event,\''+p.id+'\')" title="Wishlist">♥</button>'
       +'</div>'
       +'<div class="shop-card-body">'
-      +'<div class="shop-stars">'+stars+'<span>('+p.reviews+')</span></div>'
+      +'<div class="shop-stars" style="color:#FFD600;font-size:11px">'+starStr+'<span style="color:var(--muted);font-size:10px;margin-left:3px">('+p.reviews+')</span></div>'
       +'<div class="shop-card-name">'+p.name+'</div>'
       +'<div class="shop-card-desc">'+p.desc+'</div>'
       +'<div class="shop-card-footer">'
@@ -12210,6 +13308,7 @@ document.addEventListener('DOMContentLoaded', function(){
     <button class="ad-tab" onclick="adTab('users',this)">👥 Users</button>
     <button class="ad-tab" onclick="adTab('bin',this)">🗑️ Bin</button>
     <button class="ad-tab" onclick="adTab('contact',this)" id="ad-tab-contact">📬 Contact<span id="ad-contact-badge" style="display:none;margin-left:5px;background:#F50057;color:#fff;border-radius:50px;padding:1px 6px;font-size:9px;font-weight:800">0</span></button>
+    <button class="ad-tab" onclick="adTab('shop',this)">🛍️ Shop</button>
     <button class="ad-tab" onclick="adTab('settings',this)">⚙️ Settings</button>
   </div>
 
@@ -12263,6 +13362,11 @@ document.addEventListener('DOMContentLoaded', function(){
     <!-- CONTACT MESSAGES PANEL -->
     <div class="ad-panel" id="ad-panel-contact">
       <div id="ad-contact-content"></div>
+    </div>
+
+    <!-- SHOP PRODUCTS PANEL -->
+    <div class="ad-panel" id="ad-panel-shop">
+      <div id="ad-shop-content"></div>
     </div>
 
     <!-- SETTINGS PANEL -->
@@ -14447,6 +15551,30 @@ setInterval(function(){
   .cdp-action-btn,.cdp-msg-btn{flex:1 1 100%;min-width:0}
   .cdp-info-grid{grid-template-columns:1fr}
 }
+
+/* ═══ CHAT SYSTEM ═══ */
+#chat-overlay{position:fixed;inset:0;z-index:10010;background:rgba(0,0,0,.78);backdrop-filter:blur(5px);display:none;align-items:flex-end;justify-content:center;padding:0}
+#chat-overlay.open{display:flex}
+#chat-box{width:100%;max-width:520px;height:80vh;background:#111;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.cht-hd{padding:12px 16px;background:#161616;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.cht-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#00C853,#B2FF59);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#000;flex-shrink:0}
+.cht-info{flex:1;min-width:0}
+.cht-nm{font-size:14px;font-weight:800;color:#F5F5F5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cht-sub{font-size:10px;color:#B2FF59;font-weight:600}
+.cht-x{width:28px;height:28px;border-radius:50%;border:none;background:#222;color:#aaa;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cht-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:7px}
+.cht-msgs::-webkit-scrollbar{width:2px}
+.cht-bbl{max-width:76%;padding:8px 12px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+.cht-bbl.s{background:linear-gradient(135deg,#00C853,#B2FF59);color:#000;align-self:flex-end;border-bottom-right-radius:3px;font-weight:600}
+.cht-bbl.r{background:#1e1e1e;color:#F5F5F5;align-self:flex-start;border-bottom-left-radius:3px;border:1px solid #282828}
+.cht-tm{font-size:9px;opacity:.55;margin-top:2px;text-align:right}
+.cht-bbl.r .cht-tm{text-align:left}
+.cht-sep{text-align:center;font-size:10px;color:#555;padding:3px 0;font-weight:600}
+.cht-ft{padding:8px 12px;background:#161616;border-top:1px solid #222;display:flex;gap:7px;align-items:flex-end;flex-shrink:0}
+.cht-inp{flex:1;background:#222;border:1px solid #2e2e2e;border-radius:20px;padding:9px 13px;font-size:13px;color:#F5F5F5;font-family:Poppins,sans-serif;resize:none;max-height:80px;min-height:36px;outline:none;line-height:1.4}
+.cht-inp::placeholder{color:#4a4a4a}
+.cht-sb{width:36px;height:36px;border-radius:50%;border:none;background:linear-gradient(135deg,#00C853,#B2FF59);color:#000;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cht-empty{text-align:center;padding:40px 16px;color:#555;font-size:13px}
 </style>
 
 <!-- ═══════════════════════════════════════════
@@ -14716,7 +15844,7 @@ setInterval(function(){
   function _actionBtns(d){
     var primary='';
     if(d.section==='classes')primary='<button class="cdp-action-btn" onclick="openModal(\'book\');closeCardDetail()">Book Session →</button>';
-    else if(d.section==='trainers')primary='<button class="cdp-action-btn" onclick="bookTrainer(\''+d.name.replace(/'/g,"\\'")+'  \');closeCardDetail()">Book Now →</button>';
+    else if(d.section==='trainers')primary='<button class="cdp-action-btn" onclick="bookTrainer(\''+d.name.split("'").join('')+'  \');closeCardDetail()">Book Now →</button>';
     else if(d.section==='shop')primary='<button class="cdp-action-btn" style="background:linear-gradient(135deg,var(--blue),#0080d4)" onclick="showToast(\'🛒 Added!\');closeCardDetail()">Add to Cart →</button>';
     else if(d.section==='health')primary='<button class="cdp-action-btn" style="background:linear-gradient(135deg,var(--pink),#c40046)" onclick="closeCardDetail()">View Health Plan →</button>';
     else if(d.section==='diet')primary='<button class="cdp-action-btn" style="background:linear-gradient(135deg,var(--teal),#007a69)" onclick="openModal(\'diet-form\');closeCardDetail()">Get Diet Plan →</button>';
@@ -15708,6 +16836,8 @@ function _buildDetailBody(d, id){
     if(d.duration)  html += _row('⏱ Session Duration',d.duration);
     if(d.price)     html += _row('💰 Price',d.price);
     if(d.avail)     html += _row('🟢 Availability',d.avail);
+    if(d.homeClass==='yes') html += _row('🏠 Home Class','✅ Home Class Available — Client ke ghar visit karte hain');
+    if(d.hasCenter==='yes'&&d.centerName) html += _row('🏢 Center / Studio',d.centerName+(d.centerAddr?' · '+d.centerAddr:''));
     html += '</div></div>';
 
   } else if(d.type==='class'){
@@ -15783,7 +16913,7 @@ function _buildDetailBody(d, id){
     +'<div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">Ready to start your wellness journey? Book a session today — first session at special introductory price!</div>'
     +'<div style="display:flex;gap:9px;flex-wrap:wrap">'
     +'<button onclick="'+bookBtnAction+'" style="flex:1;min-width:140px;padding:13px 20px;border-radius:50px;border:none;'+bookBtnStyle+'font-size:13px;font-weight:800;cursor:pointer;font-family:Poppins,sans-serif;transition:all .2s" onmouseover="this.style.transform=\'scale(1.03)\'" onmouseout="this.style.transform=\'\'">'+_e(bookBtnLabel)+'</button>'
-    +'<button onclick="showToast(\'❤️ '+_e(d.name).replace(/'/g,"\\'")+ ' wishlist mein add hua!\')" style="padding:13px 18px;border-radius:50px;border:1.5px solid rgba(245,0,87,.3);background:rgba(245,0,87,.07);color:#ff5c8a;font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif;transition:all .2s;white-space:nowrap">❤️ Wishlist</button>'
+    +'<button onclick="showToast(\'❤️ '+_e(d.name).split("'").join('')+ ' wishlist mein add hua!\')" style="padding:13px 18px;border-radius:50px;border:1.5px solid rgba(245,0,87,.3);background:rgba(245,0,87,.07);color:#ff5c8a;font-size:13px;font-weight:700;cursor:pointer;font-family:Poppins,sans-serif;transition:all .2s;white-space:nowrap">❤️ Wishlist</button>'
     +'</div>'
     +'<div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:var(--muted)">🔒 Safe & Secure &nbsp;·&nbsp; 🌟 Verified '+( d.type==='trainer'?'Trainer':'Provider')+' &nbsp;·&nbsp; 💯 Satisfaction Guaranteed</div>'
     +'</div>';
@@ -16313,5 +17443,113 @@ window.closeCardDetail = function(){
 
 </script>
 
+
+<!-- ═══ CHAT MODAL ═══ -->
+<div id="chat-overlay" onclick="if(event.target===this)ffCloseChat()">
+  <div id="chat-box">
+    <div class="cht-hd">
+      <div class="cht-av" id="cht-av">?</div>
+      <div class="cht-info">
+        <div class="cht-nm" id="cht-nm">Chat</div>
+        <div class="cht-sub" id="cht-sub">Card Owner</div>
+      </div>
+      <button class="cht-x" onclick="ffCloseChat()">&#x2715;</button>
+    </div>
+    <div class="cht-msgs" id="cht-msgs"></div>
+    <div class="cht-ft">
+      <textarea class="cht-inp" id="cht-inp" placeholder="Message likho..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ffSendMsg()}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+      <button class="cht-sb" onclick="ffSendMsg()">&#10148;</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ═══ CHAT SYSTEM ═══ */
+var _cOE='',_cON='',_cCN='';
+
+function openChat(oe,on,cn){
+  if(!currentUser){
+    showToast('💬 Message ke liye pehle login karein!');
+    setTimeout(function(){openModal('login');},600);
+    return;
+  }
+  if(currentUser.email===oe){showToast('💬 Yeh aapka apna card hai!');return;}
+  if(!oe){showToast('❌ Owner info nahi mili!');return;}
+  _cOE=oe;_cON=on||'Owner';_cCN=cn||'Card';
+  var av=document.getElementById('cht-av'),nm=document.getElementById('cht-nm'),sub=document.getElementById('cht-sub');
+  if(av)av.textContent=(_cON[0]||'?').toUpperCase();
+  if(nm)nm.textContent=_cON;
+  if(sub)sub.textContent=_cCN;
+  ffRenderMsgs();
+  var ov=document.getElementById('chat-overlay');
+  if(ov)ov.classList.add('open');
+  setTimeout(function(){var i=document.getElementById('cht-inp');if(i)i.focus();},250);
+  setTimeout(ffScrollBot,150);
+}
+
+function ffSendMsg(){
+  if(!currentUser){showToast('Login karein!');return;}
+  var inp=document.getElementById('cht-inp');
+  if(!inp)return;
+  var txt=inp.value.trim();
+  if(!txt)return;
+  var key=ffChatKey(currentUser.email,_cOE);
+  var msgs=ffLoadMsgs(key);
+  var now=new Date();
+  msgs.push({
+    id:Date.now(),sender:currentUser.email,
+    senderName:currentUser.name||currentUser.email,
+    text:txt,ts:now.getTime(),
+    time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
+    date:now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})
+  });
+  ffSaveMsgs(key,msgs);
+  ffNotifyOwner(msgs[msgs.length-1]);
+  inp.value='';inp.style.height='36px';
+  ffRenderMsgs();ffScrollBot();
+}
+
+function ffNotifyOwner(msg){
+  try{
+    var k='notifs_'+_cOE;
+    var n=DB.load(k,[])||[];
+    n.unshift({id:'c'+Date.now(),icon:'💬',
+      title:'New Message — '+msg.senderName,
+      msg:msg.text.length>55?msg.text.slice(0,55)+'...':msg.text,
+      time:'Just now',ts:Date.now(),unread:true});
+    DB.save(k,n.slice(0,150));
+  }catch(e){}
+}
+
+function ffRenderMsgs(){
+  var c=document.getElementById('cht-msgs');
+  if(!c||!currentUser)return;
+  var msgs=ffLoadMsgs(ffChatKey(currentUser.email,_cOE));
+  if(!msgs.length){
+    c.innerHTML='<div class="cht-empty">💬<br><br><b>'+(_cON||'Owner')+'</b> se pehli baar baat karo!<br>Message bhejo aur connected raho.</div>';
+    return;
+  }
+  var h='',ld='';
+  msgs.forEach(function(m){
+    if(m.date!==ld){h+='<div class="cht-sep">'+m.date+'</div>';ld=m.date;}
+    var s=m.sender===currentUser.email;
+    h+='<div class="cht-bbl '+(s?'s':'r')+'">'+ffEsc(m.text)
+      +'<div class="cht-tm">'+m.time+(s?' ✓✓':'')+'</div></div>';
+  });
+  c.innerHTML=h;
+}
+
+function ffEsc(s){var r=String(s||'');r=r.split('&').join('&amp;');r=r.split('<').join('&lt;');r=r.split('>').join('&gt;');r=r.split('\n').join('<br>');return r;}
+function ffScrollBot(){var c=document.getElementById('cht-msgs');if(c)c.scrollTop=c.scrollHeight;}
+function ffChatKey(a,b){var s=[a,b].sort();return 'ffc_'+s[0]+'__'+s[1];}
+function ffLoadMsgs(k){try{return JSON.parse(localStorage.getItem(k)||'[]');}catch(e){return[];}}
+function ffSaveMsgs(k,m){try{localStorage.setItem(k,JSON.stringify(m.slice(-300)));}catch(e){}}
+function ffCloseChat(){
+  var ov=document.getElementById('chat-overlay');
+  if(ov)ov.classList.remove('open');
+  _cOE='';_cON='';_cCN='';
+}
+</script>
 </body>
 </html>
